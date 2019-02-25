@@ -47,6 +47,10 @@
 #include "random.hpp"
 #include "mloNeuronHost.hpp"
 
+#ifdef _WIN32
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
+
 #define MIO_BN_DEBUG 0
 #define MIO_BN_MAX_DEBUGLOOP 65536
 

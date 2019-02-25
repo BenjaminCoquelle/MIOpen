@@ -30,6 +30,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <Shlwapi.h>
 #endif
 #ifdef __linux__
 #include <linux/limits.h>
@@ -56,6 +57,9 @@ static std::string GetAbsolutePath(const std::string& path)
 
     if(retval == 0)
         return "";
+    else
+        if(1 != PathFileExists(&result[0]))
+            return "";
 #else
     const auto retval = realpath(path.c_str(), &result[0]);
 

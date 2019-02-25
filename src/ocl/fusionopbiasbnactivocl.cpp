@@ -396,7 +396,7 @@ BatchNormBwdTrainFusionOpDescriptor::GetLocalWGSz(Handle& /*handle*/,
         }
         else if(in_cstride > 512)
         {
-            xlocalsize = std::min(64 * ((in_cstride + 63) / 64), static_cast<unsigned long>(1024));
+            xlocalsize = std::min(64 * ((in_cstride + 63) / 64), static_cast<size_t>(1024));
         }
         else
         {

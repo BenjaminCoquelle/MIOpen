@@ -33,6 +33,11 @@
 #include <sstream>
 #include <type_traits>
 
+#ifdef _MSC_VER
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+//#define __PRETTY_FUNCTION__ (typeid(MIOpen_Private_TypeName_).name()).substr(7)
+#endif
+
 // Helper macros to output a cmdline argument for the driver
 #define MIOPEN_DRIVER_CMD(op) \
     __func__ << ": "          \

@@ -27,6 +27,10 @@
 #include "miopen/solver.hpp"
 #include <miopen/env.hpp>
 
+#ifdef _WIN32
+typedef unsigned int uint;
+#endif
+
 namespace miopen {
 namespace solver {
 
