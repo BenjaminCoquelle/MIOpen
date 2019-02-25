@@ -1155,10 +1155,23 @@ std::string any_string(const boost::any& a)
 
 void FusionMDGraph::WriteToFile(std::string filename)
 {
+#ifdef _WIN32
+    // Work around VisualStudio preprocessor weakness
+    const auto op_enum = enum_map(make_array(
+        std::pair<decltype(miopenFusionOpConvForward), std::string>(miopenFusionOpConvForward,
+                                                                    "miopenFusionOpConvForward"),
+        std::pair<decltype(miopenFusionOpActivForward), std::string>(miopenFusionOpActivForward,
+                                                                     "miopenFusionOpActivForward"),
+        std::pair<decltype(miopenFusionOpBatchNormInference), std::string>(
+            miopenFusionOpBatchNormInference, "miopenFusionOpBatchNormInference"),
+        std::pair<decltype(miopenFusionOpBiasForward), std::string>(miopenFusionOpBiasForward,
+                                                                    "miopenFusionOpBiasForward")));
+#else
     const auto op_enum = enum_map(MIOPEN_ENUM_ARR(miopenFusionOpConvForward,
                                                   miopenFusionOpActivForward,
                                                   miopenFusionOpBatchNormInference,
                                                   miopenFusionOpBiasForward));
+#endif
 
     if(filename.empty())
     {

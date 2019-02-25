@@ -195,8 +195,7 @@ ClProgramPtr LoadProgram(cl_context ctx,
         params += OclKernelWarningsString();
 #endif
 #endif
-        params += " -cl-std=CL1.2";
-        MIOPEN_LOG_I2("Building OpenCL program: '" << program_name << "', options: '" << params);
+        params += " -cl-std=CL2.0";
         BuildProgram(result.get(), device, params);
         return result;
     }

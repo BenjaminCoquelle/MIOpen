@@ -37,6 +37,16 @@
 #include <miopen/object.hpp>
 #include <miopen/config.h>
 
+#ifdef _MSC_VER
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+//#define __PRETTY_FUNCTION__ (typeid(MIOpen_Private_TypeName_).name()).substr(7)
+#endif
+
+// Helper macros to output a cmdline argument for the driver
+#define MIOPEN_DRIVER_CMD(op) \
+    __func__ << ": "          \
+             << "./bin/MIOpenDriver " << op
+
 // See https://github.com/pfultz2/Cloak/wiki/C-Preprocessor-tricks,-tips,-and-idioms
 #define MIOPEN_PP_CAT(x, y) MIOPEN_PP_PRIMITIVE_CAT(x, y)
 #define MIOPEN_PP_PRIMITIVE_CAT(x, y) x##y

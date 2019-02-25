@@ -34,6 +34,10 @@
 #include <cstdlib>
 #include "tensor_holder.hpp"
 
+#ifdef _WIN32
+typedef unsigned int uint;
+#endif
+
 // loop over sub-tensor, and operate on each data
 template <typename T, template <typename> class data_operator_t>
 void operate_over_subtensor(const data_operator_t<T>& r_data_operator,

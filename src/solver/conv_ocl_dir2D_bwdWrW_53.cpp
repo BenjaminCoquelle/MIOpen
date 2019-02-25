@@ -32,6 +32,10 @@
 
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_CONV_DIRECT_OCL_WRW53)
 
+#ifdef _WIN32
+typedef unsigned int uint;
+#endif
+
 namespace miopen {
 namespace solver {
 
