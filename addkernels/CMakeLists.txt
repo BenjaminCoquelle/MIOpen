@@ -28,4 +28,8 @@ set(ADD_KERNELS_SOURCE include_inliner.cpp addkernels.cpp)
 
 add_executable(addkernels EXCLUDE_FROM_ALL ${ADD_KERNELS_SOURCE})
 
+if(WIN32)
+    target_link_libraries(addkernels PRIVATE Shlwapi)
+endif()
+
 clang_tidy_check(addkernels)
