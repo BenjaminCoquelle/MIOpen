@@ -30,6 +30,10 @@ cmake_minimum_required( VERSION 3.5 )
 if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
+############################################################
+# require C++14
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED_ON)
 
 # Default installation path
 if(WIN32)
@@ -42,7 +46,9 @@ project ( MIOpen C CXX )
 
 enable_testing()
 
-find_package(ROCM REQUIRED PATHS /opt/rocm)
+if( NOT MSVC_IDE )
+    find_package(ROCM REQUIRED PATHS /opt/rocm)
+endif()
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
@@ -88,6 +94,14 @@ endif()
 ############################################################
 # require C++14
 add_compile_options(-std=c++14)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19.00)
+        message(FATAL_ERROR "MIOpen requires at least Visual Studio 14 2015")
+    endif()
+    string(REGEX REPLACE "(^| )[/-]W[0-4]( |$)" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W0")
+endif()
 
 ############################################################
 # OPTION - MIOpen Backend
@@ -487,9 +501,14 @@ enable_clang_tidy(
         -readability-named-parameter
         -readability-uppercase-literal-suffix
         -readability-convert-member-functions-to-static
-
         ${MIOPEN_TIDY_CHECKS}
-    ${MIOPEN_TIDY_ERRORS}
+        ${MIOPEN_TIDY_ERRORS}
+        -hicpp-use-auto
+        -modernize-use-auto
+        ${CLANG_TIDY_CHECKS}
+    ERRORS
+        *
+        -readability-inconsistent-declaration-parameter-name
     HEADER_FILTER
         ".*hpp"
     EXTRA_ARGS
