@@ -539,9 +539,11 @@ Program Handle::LoadProgram(const std::string& program_name, std::string params,
     }
     else
     {
+        std::vector<char> BinProgram;
+        miopen::LoadBinaryFile(cache_file, BinProgram);
         return LoadBinaryProgram(miopen::GetContext(this->GetStream()),
                                  miopen::GetDevice(this->GetStream()),
-                                 miopen::LoadFile(cache_file));
+                                 BinProgram);
     }
 }
 

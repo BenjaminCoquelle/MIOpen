@@ -201,9 +201,9 @@ void OpTensor3d(Handle& handle,
                        miopen_alpha0,
                        miopen_alpha1,
                        miopen_beta,
-                       long(Aoffset),
-                       long(Boffset),
-                       long(Coffset),
+                       int64_t(Aoffset),
+                       int64_t(Boffset),
+                       int64_t(Coffset),
                        int(clens[1]));
 
                 return;
@@ -239,9 +239,9 @@ void OpTensor3d(Handle& handle,
                        miopen_beta,
                        bitmap,
                        work_per_wg,
-                       long(Aoffset),
-                       long(Boffset),
-                       long(Coffset),
+                       int64_t(Aoffset),
+                       int64_t(Boffset),
+                       int64_t(Coffset),
                        int(num_wg_orig));
 
                 return;
@@ -315,9 +315,9 @@ void OpTensor3d(Handle& handle,
                 miopen_alpha0,
                 miopen_alpha1,
                 miopen_beta,
-                long(Aoffset),
-                long(Boffset),
-                long(Coffset),
+                int64_t(Aoffset),
+                int64_t(Boffset),
+                int64_t(Coffset),
                 int(clens[1]));
         }
         else
@@ -354,9 +354,9 @@ void OpTensor3d(Handle& handle,
                                     miopen_beta,
                                     bitmap,
                                     work_per_wg,
-                                    long(Aoffset),
-                                    long(Boffset),
-                                    long(Coffset),
+                                    int64_t(Aoffset),
+                                    int64_t(Boffset),
+                                    int64_t(Coffset),
                                     int(num_wg_orig));
         }
     });
@@ -503,9 +503,9 @@ void OpTensor4d(Handle& handle,
                            miopen_alpha0,
                            miopen_alpha1,
                            miopen_beta,
-                           long(Aoffset),
-                           long(Boffset),
-                           long(Coffset),
+                           int64_t(Aoffset),
+                           int64_t(Boffset),
+                           int64_t(Coffset),
                            int(num_wg_orig));
 
                     return;
@@ -536,9 +536,9 @@ void OpTensor4d(Handle& handle,
                            miopen_alpha1,
                            miopen_beta,
                            work_per_wg,
-                           long(Aoffset),
-                           long(Boffset),
-                           long(Coffset),
+                           int64_t(Aoffset),
+                           int64_t(Boffset),
+                           int64_t(Coffset),
                            int(num_wg_orig));
                     return;
                 }
@@ -559,9 +559,9 @@ void OpTensor4d(Handle& handle,
                        miopen_alpha0,
                        miopen_alpha1,
                        miopen_beta,
-                       long(Aoffset),
-                       long(Boffset),
-                       long(Coffset));
+                       int64_t(Aoffset),
+                       int64_t(Boffset),
+                       int64_t(Coffset));
                 return;
             }
         }
@@ -588,9 +588,9 @@ void OpTensor4d(Handle& handle,
                            miopen_alpha0,
                            miopen_alpha1,
                            miopen_beta,
-                           long(Aoffset),
-                           long(Boffset),
-                           long(Coffset),
+                           int64_t(Aoffset),
+                           int64_t(Boffset),
+                           int64_t(Coffset),
                            int(num_wg_orig));
 
                     return;
@@ -622,9 +622,9 @@ void OpTensor4d(Handle& handle,
                            miopen_alpha1,
                            miopen_beta,
                            work_per_wg,
-                           long(Aoffset),
-                           long(Boffset),
-                           long(Coffset),
+                           int64_t(Aoffset),
+                           int64_t(Boffset),
+                           int64_t(Coffset),
                            int(num_wg_orig));
                     return;
                 }
@@ -660,9 +660,9 @@ void OpTensor4d(Handle& handle,
                        miopen_beta,
                        bitmap,
                        work_per_wg,
-                       long(Aoffset),
-                       long(Boffset),
-                       long(Coffset),
+                       int64_t(Aoffset),
+                       int64_t(Boffset),
+                       int64_t(Coffset),
                        int(num_wg_orig));
                 return;
             }
@@ -716,9 +716,9 @@ void OpTensor4d(Handle& handle,
                                         miopen_alpha0,
                                         miopen_alpha1,
                                         miopen_beta,
-                                        long(Aoffset),
-                                        long(Boffset),
-                                        long(Coffset),
+                                        int64_t(Aoffset),
+                                        int64_t(Boffset),
+                                        int64_t(Coffset),
                                         int(num_wg_orig));
             }
             else
@@ -747,9 +747,9 @@ void OpTensor4d(Handle& handle,
                                         miopen_alpha1,
                                         miopen_beta,
                                         work_per_wg,
-                                        long(Aoffset),
-                                        long(Boffset),
-                                        long(Coffset),
+                                        int64_t(Aoffset),
+                                        int64_t(Boffset),
+                                        int64_t(Coffset),
                                         int(num_wg_orig));
             }
         }
@@ -788,9 +788,9 @@ void OpTensor4d(Handle& handle,
                 miopen_alpha0,
                 miopen_alpha1,
                 miopen_beta,
-                long(Aoffset),
-                long(Boffset),
-                long(Coffset));
+                int64_t(Aoffset),
+                int64_t(Boffset),
+                int64_t(Coffset));
         }
         else if(leading_ones)
         {
@@ -816,9 +816,9 @@ void OpTensor4d(Handle& handle,
                                         miopen_alpha0,
                                         miopen_alpha1,
                                         miopen_beta,
-                                        long(Aoffset),
-                                        long(Boffset),
-                                        long(Coffset),
+                                        int64_t(Aoffset),
+                                        int64_t(Boffset),
+                                        int64_t(Coffset),
                                         int(num_wg_orig));
             }
             else
@@ -851,9 +851,9 @@ void OpTensor4d(Handle& handle,
                                         miopen_alpha1,
                                         miopen_beta,
                                         work_per_wg,
-                                        long(Aoffset),
-                                        long(Boffset),
-                                        long(Coffset),
+                                        int64_t(Aoffset),
+                                        int64_t(Boffset),
+                                        int64_t(Coffset),
                                         int(num_wg_orig));
             }
         }
@@ -890,9 +890,9 @@ void OpTensor4d(Handle& handle,
                                     miopen_beta,
                                     bitmap,
                                     work_per_wg,
-                                    long(Aoffset),
-                                    long(Boffset),
-                                    long(Coffset),
+                                    int64_t(Aoffset),
+                                    int64_t(Boffset),
+                                    int64_t(Coffset),
                                     int(num_wg_orig));
         }
     });
@@ -1005,9 +1005,9 @@ void OpTensorOther(Handle& handle,
                        miopen_beta,
                        bitmap,
                        work_per_wg,
-                       long(Aoffset),
-                       long(Boffset),
-                       long(Coffset),
+                       int64_t(Aoffset),
+                       int64_t(Boffset),
+                       int64_t(Coffset),
                        int(num_wg_orig));
                 return;
             }
@@ -1032,9 +1032,9 @@ void OpTensorOther(Handle& handle,
                        miopen_beta,
                        bitmap,
                        work_per_wg,
-                       long(Aoffset),
-                       long(Boffset),
-                       long(Coffset),
+                       int64_t(Aoffset),
+                       int64_t(Boffset),
+                       int64_t(Coffset),
                        int(num_wg_orig));
                 return;
             }
@@ -1057,9 +1057,9 @@ void OpTensorOther(Handle& handle,
                        miopen_beta,
                        bitmap,
                        work_per_wg,
-                       long(Aoffset),
-                       long(Boffset),
-                       long(Coffset),
+                       int64_t(Aoffset),
+                       int64_t(Boffset),
+                       int64_t(Coffset),
                        int(num_wg_orig));
                 return;
             }
@@ -1126,9 +1126,9 @@ void OpTensorOther(Handle& handle,
                                     miopen_beta,
                                     bitmap,
                                     work_per_wg,
-                                    long(Aoffset),
-                                    long(Boffset),
-                                    long(Coffset),
+                                    int64_t(Aoffset),
+                                    int64_t(Boffset),
+                                    int64_t(Coffset),
                                     int(num_wg_orig));
         }
         else if(bsize == 2)
@@ -1154,9 +1154,9 @@ void OpTensorOther(Handle& handle,
                                     miopen_beta,
                                     bitmap,
                                     work_per_wg,
-                                    long(Aoffset),
-                                    long(Boffset),
-                                    long(Coffset),
+                                    int64_t(Aoffset),
+                                    int64_t(Boffset),
+                                    int64_t(Coffset),
                                     int(num_wg_orig));
         }
         else if(bsize == 1)
@@ -1179,9 +1179,9 @@ void OpTensorOther(Handle& handle,
                                     miopen_beta,
                                     bitmap,
                                     work_per_wg,
-                                    long(Aoffset),
-                                    long(Boffset),
-                                    long(Coffset),
+                                    int64_t(Aoffset),
+                                    int64_t(Boffset),
+                                    int64_t(Coffset),
                                     int(num_wg_orig));
         }
 

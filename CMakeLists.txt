@@ -50,6 +50,8 @@ if( NOT MSVC_IDE )
     find_package(ROCM REQUIRED PATHS /opt/rocm)
 endif()
 
+list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )
+
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(ROCMSetupVersion)
@@ -65,7 +67,7 @@ endif()
 
 rocm_setup_version(VERSION 1.7.1)
 
-list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )
+
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.3")
