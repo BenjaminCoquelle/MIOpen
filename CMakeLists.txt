@@ -50,6 +50,8 @@ if( NOT MSVC_IDE )
     find_package(ROCM REQUIRED PATHS /opt/rocm)
 endif()
 
+list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )
+
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(ROCMSetupVersion)

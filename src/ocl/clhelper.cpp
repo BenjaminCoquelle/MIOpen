@@ -129,12 +129,20 @@ static void BuildProgram(cl_program program, cl_device_id device, const std::str
     }
 }
 
-ClProgramPtr LoadBinaryProgram(cl_context ctx, cl_device_id device, const std::string& source)
+template <typename T>
+ClProgramPtr LoadBinaryProgram(cl_context ctx, cl_device_id device, T& source)
 {
     ClProgramPtr result{CreateProgramWithBinary(ctx, device, source.data(), source.size())};
     BuildProgram(result.get(), device);
     return result;
 }
+
+template ClProgramPtr LoadBinaryProgram<std::vector<char>>(cl_context ctx,
+                                                           cl_device_id device,
+                                                           std::vector<char>& source);
+
+template ClProgramPtr LoadBinaryProgram<std::string>(cl_context ctx, cl_device_id device, std::string& source);
+
 
 ClProgramPtr LoadProgram(cl_context ctx,
                          cl_device_id device,

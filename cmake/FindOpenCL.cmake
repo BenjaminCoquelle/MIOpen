@@ -26,7 +26,7 @@
 find_path(OPENCL_INCLUDE_DIRS
     NAMES OpenCL/cl.h CL/cl.h
     HINTS
-    ${OPENCL_ROOT}/include
+    $ENV{OCL_ROOT}/include
     $ENV{AMDAPPSDKROOT}/include
     $ENV{CUDA_PATH}/include
     PATHS

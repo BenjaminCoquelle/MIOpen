@@ -421,12 +421,14 @@ Program Handle::LoadProgram(const std::string& program_name,
     }
     else
     {
+        std::vector<char> BinProgram;
+        miopen::LoadBinaryFile(cache_file, BinProgram);
         return LoadBinaryProgram(miopen::GetContext(this->GetStream()),
                                  miopen::GetDevice(this->GetStream()),
 #if MIOPEN_ENABLE_SQLITE_KERN_CACHE
                                  hsaco);
 #else
-                                 miopen::LoadFile(hsaco));
+                                 BinProgram);
 #endif
     }
 }
