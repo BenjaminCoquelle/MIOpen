@@ -264,10 +264,12 @@ void OpTensor3d(Handle& handle,
         parms += " -DMIOPEN_TENSOR_OP=";
         switch(tensorOp)
         {
-        case 0: parms += "miopenAdd"; break;
-        case 1: parms += "miopenMul"; break;
-        case 2: parms += "miopenMin"; break;
-        case 3: parms += "miopenMax"; break;
+        case miopenTensorOpAdd: parms += "miopenAdd"; break;
+        case miopenTensorOpMul: parms += "miopenMul"; break;
+        case miopenTensorOpMin: parms += "miopenMin"; break;
+        case miopenTensorOpMax: parms += "miopenMax"; break;
+        case miopenTensorOpExp: parms += "miopenExp"; break;
+        case miopenTensorOpPow: parms += "miopenPow"; break;
         }
         std::string program_name = "MIOpenTensorKernels.cl";
 
@@ -685,10 +687,12 @@ void OpTensor4d(Handle& handle,
         parms += " -DMIOPEN_TENSOR_OP=";
         switch(tensorOp)
         {
-        case 0: parms += "miopenAdd"; break;
-        case 1: parms += "miopenMul"; break;
-        case 2: parms += "miopenMin"; break;
-        case 3: parms += "miopenMax"; break;
+        case miopenTensorOpAdd: parms += "miopenAdd"; break;
+        case miopenTensorOpMul: parms += "miopenMul"; break;
+        case miopenTensorOpMin: parms += "miopenMin"; break;
+        case miopenTensorOpMax: parms += "miopenMax"; break;
+        case miopenTensorOpExp: parms += "miopenExp"; break;
+        case miopenTensorOpPow: parms += "miopenPow"; break;
         }
 
         if(fwd_conv_bias != 0)
@@ -1082,10 +1086,12 @@ void OpTensorOther(Handle& handle,
         parms += " -DMIOPEN_TENSOR_OP=";
         switch(tensorOp)
         {
-        case 0: parms += "miopenAdd"; break;
-        case 1: parms += "miopenMul"; break;
-        case 2: parms += "miopenMin"; break;
-        case 3: parms += "miopenMax"; break;
+        case miopenTensorOpAdd: parms += "miopenAdd"; break;
+        case miopenTensorOpMul: parms += "miopenMul"; break;
+        case miopenTensorOpMin: parms += "miopenMin"; break;
+        case miopenTensorOpMax: parms += "miopenMax"; break;
+        case miopenTensorOpExp: parms += "miopenExp"; break;
+        case miopenTensorOpPow: parms += "miopenPow"; break;
         }
 
         if(bsize == 5)
