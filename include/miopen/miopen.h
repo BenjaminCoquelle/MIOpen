@@ -351,10 +351,12 @@ typedef enum {
  * Element-wise tensor operation modes
 */
 typedef enum {
-    miopenTensorOpAdd = 0, /*!< Add tensors element-wise */
-    miopenTensorOpMul = 1, /*!< Multiply two tensors element-wise */
-    miopenTensorOpMin = 2, /*!< Minimum of tensor element pairs */
-    miopenTensorOpMax = 3, /*!< Maximum of tensor element pairs */
+    miopenTensorOpAdd  = 0, /*!< Add tensors element-wise */
+    miopenTensorOpMul  = 1, /*!< Multiply two tensors element-wise */
+    miopenTensorOpMin  = 2, /*!< Minimum of tensor element pairs */
+    miopenTensorOpMax  = 3, /*!< Maximum of tensor element pairs */
+    miopenTensorOpExp  = 4, /*!< Takes exponential base e of the sum of 2 tensor elements */
+    miopenTensorOpPow  = 5, /*!< Tensor element at the power of a 2nd tensor element */
 } miopenTensorOp_t;
 
 /*! @ingroup convolutions

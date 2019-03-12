@@ -66,6 +66,10 @@ MIOPEN_TYPE miopenMax(MIOPEN_TYPE a, MIOPEN_TYPE b) { return ((a > b) ? a : b); 
 
 MIOPEN_TYPE miopenMin(MIOPEN_TYPE a, MIOPEN_TYPE b) { return ((a < b) ? a : b); }
 
+MIOPEN_TYPE miopenExp(MIOPEN_TYPE a, MIOPEN_TYPE b) { return (exp(a + b)); }
+
+MIOPEN_TYPE miopenPow(MIOPEN_TYPE a, MIOPEN_TYPE b) { return (pow(a, b)); }
+
 #ifdef USE_FWD_BIAS
 
 __kernel void OpTensorFwdBias(global MIOPEN_TYPE* a,

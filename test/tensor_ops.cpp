@@ -40,6 +40,29 @@
 #include "tensor_holder.hpp"
 #include "verify.hpp"
 
+#if defined(TEST_ADD_OP)
+#define OP_ELEM add_elem
+#define OP_TYPE miopenTensorOpAdd
+#elif defined(TEST_MUL_OP)
+#define OP_ELEM mul_elem
+#define OP_TYPE miopenTensorOpMul
+#elif defined(TEST_MIN_OP)
+#define OP_ELEM min_elem
+#define OP_TYPE miopenTensorOpMin
+#elif defined(TEST_MAX_OP)
+#define OP_ELEM max_elem
+#define OP_TYPE miopenTensorOpMax
+#elif defined(TEST_EXP_OP)
+#define OP_ELEM exp_elem
+#define OP_TYPE miopenTensorOpExp
+#elif defined(TEST_POW_OP)
+#define OP_ELEM pow_elem
+#define OP_TYPE miopenTensorOpPow
+#else
+#define OP_ELEM mul_elem
+#define OP_TYPE miopenTensorOpMul
+#endif
+
 #define MIO_OPS_DEBUG 0
 
 template <class T>
@@ -88,8 +111,10 @@ struct verify_tensor_ops
 
     static T add_elem(T aelem, T belem) { return aelem + belem; }
     static T mul_elem(T aelem, T belem) { return aelem * belem; }
-    static T max_elem(T aelem, T belem) { return ((aelem > belem) ? aelem : belem); }
     static T min_elem(T aelem, T belem) { return ((aelem < belem) ? aelem : belem); }
+    static T max_elem(T aelem, T belem) { return ((aelem > belem) ? aelem : belem); }
+    static T exp_elem(T aelem, T belem) { return (static_cast<T>(exp(aelem + belem))); }
+    static T pow_elem(T aelem, T belem) { return (static_cast<T>(pow(aelem, belem))); }
 
     static void tensor_for_loop(const tensor<T>& aten,
                                 const tensor<T>& bten,
@@ -133,16 +158,9 @@ struct verify_tensor_ops
                        bindex + Boffset,
                        bten[bindex + Boffset]);
 #endif
-                cten[cindex + CtenOffset] =
-                    // add_elem(aten[aindex + AtenOffset] * palpha0, bten[bindex + BtenOffset] *
-                    // palpha1) +
-                    // max_elem(aten[aindex + AtenOffset] * palpha0, bten[bindex + BtenOffset] *
-                    // palpha1) +
-                    // min_elem(aten[aindex + AtenOffset] * palpha0, bten[bindex + BtenOffset] *
-                    // palpha1) +
-                    mul_elem(T(aten[aindex + AtenOffset] * palpha0),
-                             T(bten[bindex + BtenOffset] * palpha1)) +
-                    pbeta * cten[cindex + CtenOffset];
+                cten[cindex + CtenOffset] = OP_ELEM(T(aten[aindex + AtenOffset] * palpha0),
+                                                    T(bten[bindex + BtenOffset] * palpha1)) +
+                                            pbeta * cten[cindex + CtenOffset];
             }
             if(dim < (a_dims.size() - 1))
             {
@@ -196,10 +214,7 @@ struct verify_tensor_ops
         auto b_dev = handle.Write(b.data);
 
         miopen::OpTensor(handle,
-                         // miopenTensorOpAdd,
-                         // miopenTensorOpMax,
-                         // miopenTensorOpMin,
-                         miopenTensorOpMul,
+                         OP_TYPE,
                          &alpha0,
                          a.desc,
                          a_dev.get(),
@@ -339,4 +354,22 @@ struct tensor_ops_driver : test_driver
     }
 };
 
-int main(int argc, const char* argv[]) { test_drive<tensor_ops_driver>(argc, argv); }
+int main(int argc, const char* argv[])
+{
+#if defined(TEST_ADD_OP)
+    std::cout << "Testing Add operator" << std::endl;
+#elif defined(TEST_MUL_OP)
+    std::cout << "Testing Mul operator" << std::endl;
+#elif defined(TEST_MIN_OP)
+    std::cout << "Testing Min operator" << std::endl;
+#elif defined(TEST_MAX_OP)
+    std::cout << "Testing Max operator" << std::endl;
+#elif defined(TEST_EXP_OP)
+    std::cout << "Testing Exp operator" << std::endl;
+#elif defined(TEST_POW_OP)
+    std::cout << "Testing Pow operator" << std::endl;
+#else
+    std::cout << "Testing Mul operator" << std::endl;
+#endif
+    test_drive<tensor_ops_driver>(argc, argv);
+}

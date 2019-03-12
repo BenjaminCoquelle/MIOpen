@@ -47,7 +47,9 @@ project ( MIOpen C CXX )
 enable_testing()
 
 if( NOT MSVC_IDE )
-    find_package(ROCM REQUIRED PATHS /opt/rocm)
+    if( EXISTS "/opt/rocm" )
+        find_package(ROCM REQUIRED PATHS /opt/rocm)
+    endif()
 endif()
 
 list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )

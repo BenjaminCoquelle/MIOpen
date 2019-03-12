@@ -141,8 +141,8 @@ template ClProgramPtr LoadBinaryProgram<std::vector<char>>(cl_context ctx,
                                                            cl_device_id device,
                                                            std::vector<char>& source);
 
-template ClProgramPtr LoadBinaryProgram<std::string>(cl_context ctx, cl_device_id device, std::string& source);
-
+template ClProgramPtr
+LoadBinaryProgram<std::string>(cl_context ctx, cl_device_id device, std::string& source);
 
 ClProgramPtr LoadProgram(cl_context ctx,
                          cl_device_id device,
