@@ -59,13 +59,23 @@ static boost::filesystem::path ComputeSysCachePath()
 
 static boost::filesystem::path ComputeUserCachePath()
 {
-#ifdef MIOPEN_CACHE_DIR
-    std::string cache_dir = MIOPEN_CACHE_DIR;
-    std::string version;
+#if defined (MIOPEN_CACHE_DIR) || defined (WIN32)
 
-    version = std::to_string(MIOPEN_VERSION_MAJOR) + "." + std::to_string(MIOPEN_VERSION_MINOR) +
-              "." + std::to_string(MIOPEN_VERSION_PATCH) + "." +
-              MIOPEN_STRINGIZE(MIOPEN_VERSION_TWEAK);
+#ifdef WIN32
+    // Needs to set per system user!!
+
+    std::string home_dir = GetStringEnv(LOCALAPPDATA{});
+
+    std::string cache_dir = home_dir + "/miopen/cachekernel";
+#else
+    std::string cache_dir =  MIOPEN_CACHE_DIR;
+
+#endif
+    std::string version = std::to_string(MIOPEN_VERSION_MAJOR) + "." +
+                          std::to_string(MIOPEN_VERSION_MINOR) + "." +
+                          std::to_string(MIOPEN_VERSION_PATCH) + "." +
+                          MIOPEN_STRINGIZE(MIOPEN_VERSION_TWEAK);
+
     auto p = boost::filesystem::path{miopen::ExpandUser(cache_dir)} / version;
 
     const char* const custom = miopen::GetStringEnv(MIOPEN_CUSTOM_CACHE_DIR{});
