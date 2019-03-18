@@ -42,9 +42,18 @@ MIOPEN_DECLARE_ENV_VAR(MIOPEN_DISABLE_CACHE)
 
 boost::filesystem::path ComputeCachePath()
 {
-#ifdef MIOPEN_CACHE_DIR
-    std::string cache_dir = MIOPEN_CACHE_DIR;
+#if defined (MIOPEN_CACHE_DIR) || defined (WIN32)
 
+#ifdef WIN32
+    // Needs to set per system user!!
+
+    std::string home_dir = GetStringEnv(LOCALAPPDATA{});
+
+    std::string cache_dir = home_dir + "/miopen/cachekernel";
+#else
+    std::string cache_dir =  MIOPEN_CACHE_DIR;
+
+#endif
     std::string version = std::to_string(MIOPEN_VERSION_MAJOR) + "." +
                           std::to_string(MIOPEN_VERSION_MINOR) + "." +
                           std::to_string(MIOPEN_VERSION_PATCH);
