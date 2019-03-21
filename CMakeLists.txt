@@ -37,7 +37,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED_ON)
 
 if(WIN32)
     set (RIF_BUILD 1 CACHE BOOL "1")
-	set (HOME_DIR $ENV{LOCALAPPDATA})
+	set (HOME_DIR_WRONG $ENV{LOCALAPPDATA})
+	string(REPLACE "\\" "/" HOME_DIR "${HOME_DIR_WRONG}")
+	message("HOME_DIR = ${HOME_DIR}")
 endif()
 # Default installation path
 if(WIN32)
