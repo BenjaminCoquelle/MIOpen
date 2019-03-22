@@ -385,7 +385,7 @@ set(BOOST_COMPONENTS filesystem)
 add_definitions(-DBOOST_ALL_NO_LIB=1)
 find_package(Boost REQUIRED COMPONENTS ${BOOST_COMPONENTS})
 
-find_path(HALF_INCLUDE_DIR NAMES half.hpp HINTS "./include")
+find_path(HALF_INCLUDE_DIR NAMES half.hpp HINTS "./src/include")
 
 option( MIOPEN_DEBUG_FIND_DB_CACHING "Use system find-db caching" ON)
 
