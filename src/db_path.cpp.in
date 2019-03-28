@@ -50,11 +50,21 @@ namespace {
 std::string PrepareUserDbPath()
 {
     auto p = GetStringEnv(MIOPEN_USER_DB_PATH{});
+
+#if defined(WIN32)
+    if(p == nullptr)
+	{
+	    std::string dir = GetStringEnv(LOCALAPPDATA{});
+        dir += "/miopen/kernels";
+        p=dir.c_str();
+    }
+#else
     if(p == nullptr)
         p = "${MIOPEN_USER_DB_PATH}";
+#endif
+
     return ExpandUser(p);
 }
-
 std::string PrepareFindDbPath()
 {
     auto p = GetStringEnv(MIOPEN_FIND_DB_PATH{});
