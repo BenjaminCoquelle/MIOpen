@@ -33,6 +33,8 @@
 
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_SYSTEM_DB_PATH)
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_USER_DB_PATH)
+MIOPEN_DECLARE_ENV_VAR(MIOPEN_SYSTEM_FIND_DB_SUFFIX)
+MIOPEN_DECLARE_ENV_VAR(MIOPEN_USER_FIND_DB_SUFFIX)
 
 namespace miopen {
 
@@ -49,13 +51,29 @@ namespace {
 std::string PrepareUserDbPath()
 {
     auto p = GetStringEnv(MIOPEN_USER_DB_PATH{});
+
+#if defined(RIF_BUILD)
+    std::string dir;
+    if(p == nullptr)
+    {
+#if defined(WIN32)
+        dir = GetStringEnv(LOCALAPPDATA{});
+#else
+        dir = GetStringEnv(HOME{});
+#endif
+        dir += "/miopen/kernels";
+        p=dir.c_str();
+    }
+#else
     if(p == nullptr)
         p = "${MIOPEN_USER_DB_PATH}";
+#endif
+
     return ExpandUser(p);
 }
 } // namespace
 
-std::string GetUserDbSuffix() { return "${MIOPEN_USER_DB_SUFFIX}"; }
+std::string GetUserFindDbSuffix() { return "${MIOPEN_USER_FIND_DB_SUFFIX}"; }
 
 std::string GetSystemFindDbSuffix() { return "${MIOPEN_SYSTEM_FIND_DB_SUFFIX}"; }
 
@@ -64,5 +82,4 @@ const std::string& GetUserDbPath()
     static const auto instance = PrepareUserDbPath();
     return instance;
 }
-
 } // namespace miopen
