@@ -115,6 +115,7 @@ set( MIOpen_Source
     include/miopen/fusion_ops.hpp
     include/miopen/fusion.hpp
     include/miopen/mdg_expr.hpp
+	include/miopen/resource.h
     md_graph.cpp
     mdg_expr.cpp
     tensor.cpp
@@ -301,6 +302,12 @@ if( MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
         hipoc/hipoc_kernel.cpp
         hipoc/hipoc_program.cpp
         )
+endif()
+
+if(WIN32)
+    list(APPEND MIOpen_Source
+	    include/miopen/MIOpen.rc
+	    )
 endif()
 
 if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
