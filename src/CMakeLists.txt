@@ -181,6 +181,7 @@ set( MIOpen_Source
     include/miopen/reduce_common.hpp
     include/miopen/sequences.hpp
     include/miopen/rocm_features.hpp
+	include/miopen/resource.h
     md_graph.cpp
     mdg_expr.cpp
     conv/invokers/gcn_asm_1x1u.cpp
@@ -492,6 +493,12 @@ if( MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
         hipoc/hipoc_kernel.cpp
         hipoc/hipoc_program.cpp
         )
+endif()
+
+if(WIN32)
+    list(APPEND MIOpen_Source
+	    include/miopen/MIOpen.rc
+	    )
 endif()
 
 if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
