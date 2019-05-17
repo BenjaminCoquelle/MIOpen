@@ -58,6 +58,9 @@
 #elif defined(TEST_POW_OP)
 #define OP_ELEM pow_elem
 #define OP_TYPE miopenTensorOpPow
+#elif defined(TEST_LOG_OP)
+#define OP_ELEM log_elem
+#define OP_TYPE miopenTensorOpLog
 #else
 #define OP_ELEM mul_elem
 #define OP_TYPE miopenTensorOpMul
@@ -115,6 +118,7 @@ struct verify_tensor_ops
     static T max_elem(T aelem, T belem) { return ((aelem > belem) ? aelem : belem); }
     static T exp_elem(T aelem, T belem) { return (static_cast<T>(exp(aelem + belem))); }
     static T pow_elem(T aelem, T belem) { return (static_cast<T>(pow(aelem, belem))); }
+    static T log_elem(T aelem, T belem) { return (static_cast<T>(log(aelem + belem))); }
 
     static void tensor_for_loop(const tensor<T>& aten,
                                 const tensor<T>& bten,
@@ -368,6 +372,8 @@ int main(int argc, const char* argv[])
     std::cout << "Testing Exp operator" << std::endl;
 #elif defined(TEST_POW_OP)
     std::cout << "Testing Pow operator" << std::endl;
+#elif defined(TEST_LOG_OP)
+    std::cout << "Testing Log operator" << std::endl;
 #else
     std::cout << "Testing Mul operator" << std::endl;
 #endif

@@ -70,6 +70,8 @@ MIOPEN_TYPE miopenExp(MIOPEN_TYPE a, MIOPEN_TYPE b) { return (exp(a + b)); }
 
 MIOPEN_TYPE miopenPow(MIOPEN_TYPE a, MIOPEN_TYPE b) { return (pow(a, b)); }
 
+MIOPEN_TYPE miopenLog(MIOPEN_TYPE a, MIOPEN_TYPE b) { return (log(a + b)); }
+
 #ifdef USE_FWD_BIAS
 
 __kernel void OpTensorFwdBias(global MIOPEN_TYPE* a,
