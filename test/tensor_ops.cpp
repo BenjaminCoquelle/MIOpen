@@ -61,6 +61,9 @@
 #elif defined(TEST_LOG_OP)
 #define OP_ELEM log_elem
 #define OP_TYPE miopenTensorOpLog
+#elif defined(TEST_RDIV_OP)
+#define OP_ELEM rdiv_elem
+#define OP_TYPE miopenTensorOpRDiv
 #else
 #define OP_ELEM mul_elem
 #define OP_TYPE miopenTensorOpMul
@@ -119,6 +122,7 @@ struct verify_tensor_ops
     static T exp_elem(T aelem, T belem) { return (static_cast<T>(exp(aelem + belem))); }
     static T pow_elem(T aelem, T belem) { return (static_cast<T>(pow(aelem, belem))); }
     static T log_elem(T aelem, T belem) { return (static_cast<T>(log(aelem + belem))); }
+    static T rdiv_elem(T aelem, T belem) { return aelem / belem; }
 
     static void tensor_for_loop(const tensor<T>& aten,
                                 const tensor<T>& bten,
@@ -374,6 +378,8 @@ int main(int argc, const char* argv[])
     std::cout << "Testing Pow operator" << std::endl;
 #elif defined(TEST_LOG_OP)
     std::cout << "Testing Log operator" << std::endl;
+#elif defined(TEST_RDIV_OP)
+    std::cout << "Testing rDiv operator" << std::endl;
 #else
     std::cout << "Testing Mul operator" << std::endl;
 #endif
