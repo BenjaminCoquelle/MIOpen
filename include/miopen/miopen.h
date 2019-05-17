@@ -309,6 +309,7 @@ typedef enum {
     miopenTensorOpMax  = 3, /*!< Maximum of tensor element pairs */
     miopenTensorOpExp  = 4, /*!< Takes exponential base e of the sum of 2 tensor elements */
     miopenTensorOpPow  = 5, /*!< Tensor element at the power of a 2nd tensor element */
+    miopenTensorOpLog  = 6, /*!< Takes natural logarithm of the sum of 2 tensor elements */
 } miopenTensorOp_t;
 
 /*! @ingroup convolutions
