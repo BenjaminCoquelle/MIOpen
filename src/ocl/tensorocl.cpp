@@ -271,6 +271,7 @@ void OpTensor3d(Handle& handle,
         case miopenTensorOpExp: parms += "miopenExp"; break;
         case miopenTensorOpPow: parms += "miopenPow"; break;
         case miopenTensorOpLog: parms += "miopenLog"; break;
+        case miopenTensorOpRDiv: parms += "miopenRDiv"; break;
         }
         std::string program_name = "MIOpenTensorKernels.cl";
 
@@ -695,6 +696,7 @@ void OpTensor4d(Handle& handle,
         case miopenTensorOpExp: parms += "miopenExp"; break;
         case miopenTensorOpPow: parms += "miopenPow"; break;
         case miopenTensorOpLog: parms += "miopenLog"; break;
+        case miopenTensorOpRDiv: parms += "miopenRDiv"; break;
         }
 
         if(fwd_conv_bias != 0)
@@ -1095,6 +1097,7 @@ void OpTensorOther(Handle& handle,
         case miopenTensorOpExp: parms += "miopenExp"; break;
         case miopenTensorOpPow: parms += "miopenPow"; break;
         case miopenTensorOpLog: parms += "miopenLog"; break;
+        case miopenTensorOpRDiv: parms += "miopenRDiv"; break;
         }
 
         if(bsize == 5)
