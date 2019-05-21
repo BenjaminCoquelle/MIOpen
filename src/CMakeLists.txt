@@ -182,6 +182,7 @@ set( MIOpen_Source
     include/miopen/sequences.hpp
     include/miopen/rocm_features.hpp
 	include/miopen/resource.h
+    include/miopen/resource.h
     md_graph.cpp
     mdg_expr.cpp
     conv/invokers/gcn_asm_1x1u.cpp
