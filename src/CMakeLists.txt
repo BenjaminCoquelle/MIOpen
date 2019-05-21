@@ -115,7 +115,7 @@ set( MIOpen_Source
     include/miopen/fusion_ops.hpp
     include/miopen/fusion.hpp
     include/miopen/mdg_expr.hpp
-	include/miopen/resource.h
+    include/miopen/resource.h
     md_graph.cpp
     mdg_expr.cpp
     tensor.cpp

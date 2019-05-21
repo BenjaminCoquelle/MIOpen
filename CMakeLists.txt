@@ -37,19 +37,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED_ON)
 
 if(WIN32)
     set (RIF_BUILD 1 CACHE BOOL "1")
-	set (HOME_DIR_WRONG $ENV{LOCALAPPDATA})
-	string(REPLACE "\\" "/" HOME_DIR "${HOME_DIR_WRONG}")
-	message("HOME_DIR = ${HOME_DIR}")
+    set (HOME_DIR_WRONG $ENV{LOCALAPPDATA})
+    string(REPLACE "\\" "/" HOME_DIR "${HOME_DIR_WRONG}")
+    message("HOME_DIR = ${HOME_DIR}")
 endif()
 # Default installation path
 if(WIN32)
     if(RIF_BUILD)
-	    set(CMAKE_INSTALL_PREFIX "./models" CACHE PATH "")
-		message("using RIF_BUILD")
-		message("CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-	else()
+        set(CMAKE_INSTALL_PREFIX "./models" CACHE PATH "")
+        message("using RIF_BUILD")
+        message("CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
+    else()
         set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
-		message("using non RIF_BUILD")
+        message("using non RIF_BUILD")
     endif()
 else()
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
@@ -180,7 +180,10 @@ find_program(MIOPEN_AMDGCN_ASSEMBLER
 message(STATUS "AMDGCN assembler: ${MIOPEN_AMDGCN_ASSEMBLER}")
 
 # miopengemm
-find_package(miopengemm PATHS /opt/rocm)
+if(NOT MSVC_IDE AND NOT RIF_BUILD)
+    find_package(miopengemm PATHS /opt/rocm)
+endif()
+
 if(miopengemm_FOUND)
     message(STATUS "Build with miopengemm")
     set(MIOPEN_USE_MIOPENGEMM 1)
@@ -210,20 +213,20 @@ if(BUILD_DEV)
     set(MIOPEN_USER_DB_PATH "${CMAKE_SOURCE_DIR}/src/kernels" CACHE PATH "Default path to search for user db")
     set(MIOPEN_FIND_DB_PATH "${CMAKE_SOURCE_DIR}/src/kernels" CACHE PATH "Default path to search for find db")
     set(MIOPEN_CACHE_DIR "" CACHE STRING "")
-	
+
 else()
     set(MIOPEN_BUILD_DEV 0)
     if(WIN32 AND RIF_BUILD)
         set(MIOPEN_DB_PATH "${CMAKE_INSTALL_PREFIX}/kernels" CACHE PATH "Default path to search for installed db")
         set(MIOPEN_USER_DB_PATH "${HOME_DIR}/miopen/kernels" CACHE STRING "Default path to search for user db")
-	    set(MIOPEN_CACHE_DIR "${HOME_DIR}/miopen/cacheKernel" CACHE STRING "")
+        set(MIOPEN_CACHE_DIR "${HOME_DIR}/miopen/cacheKernel" CACHE STRING "")
     else()
         set(MIOPEN_DB_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_INSTALL_DIR}/kernels" CACHE PATH "Default path to search for installed db")
         set(MIOPEN_USER_DB_PATH "~/.config/miopen/" CACHE STRING "Default path to search for user db")
         set(MIOPEN_CACHE_DIR "~/.cache/miopen/" CACHE STRING "")
     endif()
-    
-	set(MIOPEN_FIND_DB_PATH "~/.config/miopen/" CACHE STRING "Default path to search for find db")
+
+    set(MIOPEN_FIND_DB_PATH "~/.config/miopen/" CACHE STRING "Default path to search for find db")
 
 endif()
 
@@ -291,7 +294,7 @@ enable_clang_tidy(
         -readability-else-after-return
         -readability-named-parameter
         -hicpp-use-auto
-	-modernize-use-auto
+        -modernize-use-auto
         ${CLANG_TIDY_CHECKS}
     ERRORS
         *
