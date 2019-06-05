@@ -498,8 +498,8 @@ endif()
 
 if(WIN32)
     list(APPEND MIOpen_Source
-	    include/miopen/MIOpen.rc
-	    )
+        include/miopen/MIOpen.rc
+        )
 endif()
 
 if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")

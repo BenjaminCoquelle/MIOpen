@@ -59,17 +59,18 @@ static boost::filesystem::path ComputeSysCachePath()
 
 static boost::filesystem::path ComputeUserCachePath()
 {
-#if defined (MIOPEN_CACHE_DIR) || defined (WIN32)
-
-#ifdef WIN32
+#if defined(MIOPEN_CACHE_DIR)
+#if defined(RIF_BUILD)
+#if defined(WIN32)
     // Needs to set per system user!!
-
     std::string home_dir = GetStringEnv(LOCALAPPDATA{});
-
-    std::string cache_dir = home_dir + "/miopen/cachekernel";
 #else
-    std::string cache_dir =  MIOPEN_CACHE_DIR;
-
+    // Needs to set per system user!!
+    std::string home_dir = GetStringEnv(HOME{});
+#endif
+    std::string cache_dir = home_dir + "/miopen/cacheKernel";
+#else
+    std::string cache_dir = MIOPEN_CACHE_DIR;
 #endif
     std::string version = std::to_string(MIOPEN_VERSION_MAJOR) + "." +
                           std::to_string(MIOPEN_VERSION_MINOR) + "." +
