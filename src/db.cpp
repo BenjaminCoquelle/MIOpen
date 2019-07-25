@@ -66,8 +66,7 @@ PlainTextDb::PlainTextDb(const std::string& filename_,
 
 PlainTextDb::PlainTextDb(const std::string& filename_, bool is_system)
     : filename(filename_),
-      lock_file(LockFile::Get(LockFilePath(filename_).c_str())),
-      warn_if_unreadable(is_system)
+      lock_file(LockFile::Get(LockFilePath(filename_).c_str()))
 {
     if(!is_system)
     {
@@ -152,11 +151,7 @@ boost::optional<DbRecord> PlainTextDb::FindRecordUnsafe(const std::string& key,
 
     if(!file)
     {
-        if(warn_if_unreadable && !MIOPEN_DISABLE_SYSDB)
-            MIOPEN_LOG_W("File is unreadable: " << filename);
-        else
-            MIOPEN_LOG_I2("File is unreadable: " << filename);
-
+        MIOPEN_LOG_I("File is unreadable: " << filename);
         return boost::none;
     }
 

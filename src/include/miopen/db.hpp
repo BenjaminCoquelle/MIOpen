@@ -144,7 +144,6 @@ class PlainTextDb
     private:
     std::string filename;
     LockFile& lock_file;
-    const bool warn_if_unreadable;
 
     boost::optional<DbRecord> FindRecordUnsafe(const std::string& key, RecordPositions* pos);
     bool FlushUnsafe(const DbRecord& record, const RecordPositions* pos);
