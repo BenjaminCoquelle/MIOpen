@@ -45,6 +45,7 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
         NAMES OpenCL
         HINTS
         ${OPENCL_ROOT}/lib
+		$ENV{OCL_ROOT}/lib		
         $ENV{AMDAPPSDKROOT}/lib
         $ENV{CUDA_PATH}/lib
         DOC "OpenCL dynamic library path"
