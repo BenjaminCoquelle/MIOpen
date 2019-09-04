@@ -78,7 +78,7 @@ class DbRecord
         public:
         std::pair<const std::string&, TValue> operator*() const
         {
-            assert(it != InnerIterator{});
+            assert(!it->first.empty() && !it->second.empty());
             TValue value;
             value.Deserialize(it->second);
             return {it->first, value};
