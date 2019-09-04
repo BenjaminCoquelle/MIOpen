@@ -26,6 +26,9 @@
 #include <miopen/convolution.hpp>
 #include <miopen/convolution_fft.hpp>
 #include <miopen/env.hpp>
+#include <miopen/handle.hpp>
+#include <miopen/tensor_ops.hpp>
+#include <miopen/tensor.hpp>
 #include <miopen/util.hpp>
 
 namespace miopen {
@@ -245,14 +248,11 @@ static int FindFFTKernel(Handle& handle,
     // cgemm kernel options
     int cgemm_choice = 0;
 
-    if((in_h == 28) && (in_w == 28))
+    if(((in_h == 28) && (in_w == 28)) || ((in_h == 14) && (in_w == 14)) ||
+       ((in_h == 7) && (in_w == 7)))
         cgemm_choice = 2;
     else if((in_h == 27) && (in_w == 27))
         cgemm_choice = 1;
-    else if((in_h == 14) && (in_w == 14))
-        cgemm_choice = 2;
-    else if((in_h == 7) && (in_w == 7))
-        cgemm_choice = 2;
 
     if((in_n < 16) || (in_c < 16) || (out_c < 16))
         cgemm_choice = 0;
@@ -372,10 +372,11 @@ int ConvolutionDescriptor::FindBwdFFTKernel(Handle& handle,
                                             const TensorDescriptor& wDesc,
                                             const TensorDescriptor& dxDesc,
                                             size_t workSpaceSize,
-                                            std::vector<KernelInvoke>& kernels) const
+                                            std::vector<KernelInvoke>& kernels,
+                                            std::string& kcache_key) const
 {
 
-    return FindFFTKernel(handle, dyDesc, wDesc, dxDesc, workSpaceSize, kernels, false);
+    return FindFFTKernel(handle, dyDesc, wDesc, dxDesc, workSpaceSize, kernels, false, &kcache_key);
 }
 
 static float ExecuteFFTKernel(Handle& handle,
@@ -394,7 +395,7 @@ static float ExecuteFFTKernel(Handle& handle,
     (void)wDesc; // suppress warning
     (void)fwd;   // suppress warning
 
-    int halfw = static_cast<int>(workSpaceSize) / (2 * 2 * sizeof(float));
+    int halfw = static_cast<int>(workSpaceSize) / (2 * 2 * static_cast<int>(sizeof(float)));
     int in_n, in_c, in_h, in_w;
     std::tie(in_n, in_c, in_h, in_w) = miopen::tien<4>(xDesc.GetLengths());
 
@@ -424,8 +425,6 @@ static float ExecuteFFTKernel(Handle& handle,
         {
         case 0: k(x, workSpace); break;
         case 1: k(w, workSpace); break;
-        case 2: k(workSpace); break;
-        case 3: k(workSpace); break;
         case 4:
         {
             k(workSpace,
@@ -442,10 +441,12 @@ static float ExecuteFFTKernel(Handle& handle,
               in_n,
               N,
               in_c);
+            break;
         }
-        break;
-        case 5: k(workSpace); break;
         case 6: k(workSpace, y); break;
+        case 2:
+        case 3:
+        case 5: k(workSpace); break;
         default: assert(false);
         }
 

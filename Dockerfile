@@ -17,6 +17,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     clang-format-3.8 \
     clang-tidy-3.8 \
     cmake \
+    comgr \
     curl \
     doxygen \
     g++-mingw-w64 \
@@ -37,6 +38,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python \
     python-dev \
     python-pip \
+    rocm-device-libs \
     rocm-opencl \
     rocm-opencl-dev \
     software-properties-common \
@@ -55,7 +57,7 @@ RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.
 RUN dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
 
 # Install cget
-RUN pip install cget
+RUN pip install https://github.com/pfultz2/cget/archive/57b3289000fcdb3b7e424c60a35ea09bc44d8538.tar.gz
 
 # Add the windows toolchain
 ADD cmake/mingw-toolchain.cmake $PREFIX/x86_64-w64-mingw32/cmake/toolchain.cmake
@@ -65,12 +67,13 @@ RUN cget -p $PREFIX/x86_64-w64-mingw32 init -t $PREFIX/x86_64-w64-mingw32/cmake/
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 # Install hcc
-RUN rclone -b roc-1.9.x  -c ec91fedbbe48d1c621ea08a493bc11869a10eedd https://github.com/RadeonOpenCompute/hcc.git /hcc
+RUN rclone -b extractkernels-path -c f460d4eb92 https://github.com/RadeonOpenCompute/hcc.git /hcc
 RUN cget -p $PREFIX install hcc,/hcc  && rm -rf /hcc
 
-# This is a workaround for broken installations
-RUN ln -s $PREFIX /opt/rocm/hip
-RUN ln -s $PREFIX /opt/rocm/hcc
+# Workaround hip: It doesn't use cmake's compiler, only the compiler at /opt/rocm/hcc/bin/hcc
+RUN mkdir -p /opt/rocm/hcc/bin
+RUN ln -s $PREFIX/bin/hcc /opt/rocm/hcc/bin/hcc
+RUN ln -s $PREFIX/bin/hcc-config /opt/rocm/hcc/bin/hcc-config
 
 # Build using hcc
 RUN cget -p $PREFIX init --cxx $PREFIX/bin/hcc --std=c++14
@@ -78,6 +81,7 @@ RUN cget -p $PREFIX init --cxx $PREFIX/bin/hcc --std=c++14
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
+ADD min-requirements.txt /min-requirements.txt
 RUN CXXFLAGS='-isystem $PREFIX/include' cget -p $PREFIX install -f /dev-requirements.txt
 
 # Install doc requirements

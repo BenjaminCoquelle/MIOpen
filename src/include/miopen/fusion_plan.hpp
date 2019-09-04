@@ -1,4 +1,7 @@
-#pragma once
+
+#ifndef MIOPEN_GUARD_MLOPEN_FUSION_PLAN_HPP
+#define MIOPEN_GUARD_MLOPEN_FUSION_PLAN_HPP
+
 #include <miopen/miopen.h>
 #include <miopen/tensor.hpp>
 #include <miopen/fusion.hpp>
@@ -65,6 +68,7 @@ struct FusionPlanDescriptor : miopenFusionPlanDescriptor
     auto GetLocalWGSz();
     auto GetGlobalWGSz();
     std::vector<Exec_arg_t> CalcArgOrder(Handle& handle);
+    bool GetEnumVal(const std::string& sym, int& val) const;
     OpKernelArg GetDevAttribute(const std::string& k, Handle& handle) const;
     OpKernelArg GetTensorAttr(const std::string& sym) const;
     bool GetTensorAttr(const std::string& sym, int& val) const;
@@ -91,3 +95,5 @@ struct FusionPlanDescriptor : miopenFusionPlanDescriptor
 } // namespace miopen
 
 MIOPEN_DEFINE_OBJECT(miopenFusionPlanDescriptor, miopen::FusionPlanDescriptor);
+
+#endif

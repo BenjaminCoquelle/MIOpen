@@ -23,14 +23,18 @@
  * SOFTWARE.
  *
  *******************************************************************************/
-#include <cassert>
-#include <algorithm>
-#include <miopen/errors.hpp>
 #include <miopen/tensor.hpp>
-#include <miopen/tensor_ops.hpp>
+#include <miopen/errors.hpp>
 #include <miopen/float_equal.hpp>
+#include <miopen/handle.hpp>
+#include <miopen/tensor_ops.hpp>
+#include <miopen/datatype.hpp>
 #include <miopen/visit_float.hpp>
+#include <miopen/util.hpp>
+#include <algorithm>
+#include <cassert>
 #include <numeric>
+#include <boost/range/combine.hpp>
 
 #define MIO_TENSOROCL_DEBUG 0
 
@@ -143,7 +147,9 @@ void OpTensor3d(Handle& handle,
     auto d             = std::distance(blens.begin(), first_not_one.base());
 
     // quick fix
-    int num_wg = first_not_one != blens.rend() ? (*first_not_one == 0 ? 1 : *first_not_one) : 1;
+    int num_wg = first_not_one != blens.rend()
+                     ? static_cast<int>(*first_not_one == 0 ? 1 : *first_not_one)
+                     : 1;
     int work_per_wg = std::accumulate(clens.begin() + d, clens.end(), 1, std::multiplies<int>());
 
     unsigned int bitmap = 0;
@@ -153,7 +159,7 @@ void OpTensor3d(Handle& handle,
     // (d-2) is because distance starts from 1 and 0
     // also, we need to go past the "first_not_one" as that is already
     // accounted for in the bitmap
-    CreateBitmapAndGrid(bitmap, blens, clens, num_wg, work_per_wg, (d - 2));
+    CreateBitmapAndGrid(bitmap, blens, clens, num_wg, work_per_wg, static_cast<int>(d - 2));
 
 #if(MIO_TENSOROCL_DEBUG == 1)
     printf("bitmap: %u\n", bitmap);
@@ -250,16 +256,7 @@ void OpTensor3d(Handle& handle,
 
         std::string parms = " -DMIOPEN_TYPE=" + GetDataType(bTensorDesc.GetType());
 
-        if(aTensorDesc.GetType() == miopenFloat)
-        {
-            parms += " -DMIOPEN_USE_FP16=0";
-            parms += " -DMIOPEN_USE_FP32=1";
-        }
-        else if(aTensorDesc.GetType() == miopenHalf)
-        {
-            parms += " -DMIOPEN_USE_FP16=1";
-            parms += " -DMIOPEN_USE_FP32=0";
-        }
+        parms += GetDataTypeKernelParams(aTensorDesc.GetType());
 
         parms += " -DMIOPEN_TENSOR_OP=";
         switch(tensorOp)
@@ -395,7 +392,9 @@ void OpTensor4d(Handle& handle,
     auto d             = std::distance(blens.begin(), first_not_one.base());
 
     // quick fix
-    int num_wg = first_not_one != blens.rend() ? (*first_not_one == 0 ? 1 : *first_not_one) : 1;
+    int num_wg = first_not_one != blens.rend()
+                     ? static_cast<int>(*first_not_one == 0 ? 1 : *first_not_one)
+                     : 1;
     int work_per_wg = std::accumulate(clens.begin() + d, clens.end(), 1, std::multiplies<int>());
 
     unsigned int bitmap = 0;
@@ -405,7 +404,7 @@ void OpTensor4d(Handle& handle,
     // (d-2) is because distance starts from 1 and 0
     // also, we need to go past the "first_not_one" as that is already
     // accounted for in the bitmap
-    CreateBitmapAndGrid(bitmap, blens, clens, num_wg, work_per_wg, (d - 2));
+    CreateBitmapAndGrid(bitmap, blens, clens, num_wg, work_per_wg, static_cast<int>(d - 2));
 
     // quick fix for btensor = <1, 1, 1, 1>
     if(bTensorDesc.GetElementSize() == 1)
@@ -438,7 +437,7 @@ void OpTensor4d(Handle& handle,
 
     // Does the bitmap contain leading ones, i.e. 1,1,1,0 or 1,1,0,0
     // or 1,1,1,1 or 1,0,0,0
-    bool leading_ones = IsBitmapLeadingOnes(bitmap, dims, (d - 2));
+    bool leading_ones = IsBitmapLeadingOnes(bitmap, dims, static_cast<int>(d - 2));
     if(leading_ones && work_per_wg < 64)
     {
         local_threads = 64;
@@ -675,16 +674,7 @@ void OpTensor4d(Handle& handle,
         std::string parms = " -DMIOPEN_TYPE=" + GetDataType(bTensorDesc.GetType()) +
                             " -DMAX_NUM_WG=" + std::to_string(max_num_wg);
 
-        if(aTensorDesc.GetType() == miopenFloat)
-        {
-            parms += " -DMIOPEN_USE_FP16=0";
-            parms += " -DMIOPEN_USE_FP32=1";
-        }
-        else if(aTensorDesc.GetType() == miopenHalf)
-        {
-            parms += " -DMIOPEN_USE_FP16=1";
-            parms += " -DMIOPEN_USE_FP32=0";
-        }
+        parms += GetDataTypeKernelParams(aTensorDesc.GetType());
 
         parms += " -DMIOPEN_TENSOR_OP=";
         switch(tensorOp)
@@ -766,14 +756,11 @@ void OpTensor4d(Handle& handle,
         {
             parms += " -DUSE_4D_TENSOR_LITE";
             // for naive tensor ops
-            size_t RD_BLCK              = (clens[2] % 4 == 0) ? 4 : (clens[2] % 2 == 0) ? 2 : 1;
             const std::string data_type = GetDataType(bTensorDesc.GetType());
 
-            size_t MAP_RD   = clens[2] / RD_BLCK;
             size_t TENS_LEN = cTensorDesc.GetElementSize();
-            RD_BLCK =
-                (TENS_LEN % 4 == 0) ? 4 : (TENS_LEN % 3 == 0) ? 3 : (TENS_LEN % 2 == 0) ? 2 : 1;
-            MAP_RD = TENS_LEN / RD_BLCK;
+            size_t RD_BLCK  = (TENS_LEN % 4 == 0) ? 4 : (TENS_LEN % 2 == 0) ? 2 : 1;
+            size_t MAP_RD   = TENS_LEN / RD_BLCK;
 
             const std::string READ_TYPE =
                 (RD_BLCK == 1) ? data_type : data_type + std::to_string(RD_BLCK);
@@ -934,7 +921,9 @@ void OpTensorOther(Handle& handle,
     auto d             = std::distance(blens.begin(), first_not_one.base());
 
     // quick fix
-    int num_wg = first_not_one != blens.rend() ? (*first_not_one == 0 ? 1 : *first_not_one) : 1;
+    int num_wg = first_not_one != blens.rend()
+                     ? static_cast<int>(*first_not_one == 0 ? 1 : *first_not_one)
+                     : 1;
     int work_per_wg = std::accumulate(clens.begin() + d, clens.end(), 1, std::multiplies<int>());
 
     unsigned int bitmap = 0;
@@ -944,7 +933,7 @@ void OpTensorOther(Handle& handle,
     // (d-2) is because distance starts from 1 and 0
     // also, we need to go past the "first_not_one" as that is already
     // accounted for in the bitmap
-    CreateBitmapAndGrid(bitmap, blens, clens, num_wg, work_per_wg, (d - 2));
+    CreateBitmapAndGrid(bitmap, blens, clens, num_wg, work_per_wg, static_cast<int>(d - 2));
 
 #if(MIO_TENSOROCL_DEBUG == 1)
     printf("bitmap: %u\n", bitmap);
@@ -1076,16 +1065,7 @@ void OpTensorOther(Handle& handle,
         std::string parms = " -DMIOPEN_TYPE=" + GetDataType(bTensorDesc.GetType()) +
                             " -DMAX_NUM_WG=" + std::to_string(max_num_wg);
 
-        if(aTensorDesc.GetType() == miopenFloat)
-        {
-            parms += " -DMIOPEN_USE_FP16=0";
-            parms += " -DMIOPEN_USE_FP32=1";
-        }
-        else if(aTensorDesc.GetType() == miopenHalf)
-        {
-            parms += " -DMIOPEN_USE_FP16=1";
-            parms += " -DMIOPEN_USE_FP32=0";
-        }
+        parms += GetDataTypeKernelParams(aTensorDesc.GetType());
 
         parms += " -DMIOPEN_TENSOR_OP=";
         switch(tensorOp)
@@ -1253,7 +1233,7 @@ void OpTensor(Handle& handle,
                      std::to_string(blens.size()) + ", " + std::to_string(clens.size()));
     }
 
-    for(auto i = 0; i < clens.size(); i++)
+    for(unsigned long i = 0; i < clens.size(); i++)
     {
         if(blens[i] != 1 && blens[i] != clens[i])
         {
@@ -1313,33 +1293,6 @@ void OpTensor(Handle& handle,
                       Boffset,
                       Coffset);
     }
-}
-
-static std::string parms_half_or_float(const miopenDataType_t t)
-{
-    std::string s{};
-
-    switch(t)
-    {
-    case miopenHalf:
-    {
-        s = " -DMIOPEN_USE_FP16=1 -DMIOPEN_USE_FP32=0";
-        break;
-    }
-    case miopenFloat:
-    {
-        s = " -DMIOPEN_USE_FP16=0 -DMIOPEN_USE_FP32=1";
-        break;
-    }
-    case miopenInt8:
-    {
-        s = " -DMIOPEN_USE_INTE8=1";
-        break;
-    }
-    case miopenInt32: break;
-    }
-
-    return s;
 }
 
 struct two_exp_ceiling_t
@@ -1444,7 +1397,7 @@ void SetTensor(
         std::size_t wld = 256 < wgd ? 256 : wgd;
 
         std::string parms = "-DSUBTENSOR_OP_WITH_SCALAR=SUBTENSOR_OP_WITH_SCALAR_SET" +
-                            parms_half_or_float(dataType);
+                            GetDataTypeKernelParams(dataType);
         for(int i = 0; i < yDim_flat; ++i)
         {
             parms += " -DWORK_LENGTH_" + std::to_string(i) + "=" + std::to_string(worker_sizes[i]);
@@ -1569,9 +1522,10 @@ void ScaleTensor(
     assert(yDim_flat > 0 && yDim_flat <= 5);
 
     const miopenDataType_t dataType = yDesc_flat.GetType();
-    if(dataType == miopenInt8)
+    if(dataType == miopenInt8 || dataType == miopenInt8x4 || dataType == miopenBFloat16)
     {
-        MIOPEN_THROW(miopenStatusBadParm);
+        MIOPEN_THROW(miopenStatusBadParm,
+                     "Tensor scale operation is not supported for int8, int8x4, and bfloat16.");
     }
 
     std::string kernel_name = "SubTensorOpWithScalar" + std::to_string(yDim_flat) + "d";
@@ -1606,7 +1560,7 @@ void ScaleTensor(
         std::size_t wld = 256 < wgd ? 256 : wgd;
 
         std::string parms = "-DSUBTENSOR_OP_WITH_SCALAR=SUBTENSOR_OP_WITH_SCALAR_MULTIPLY" +
-                            parms_half_or_float(dataType);
+                            GetDataTypeKernelParams(dataType);
         for(int i = 0; i < yDim_flat; ++i)
         {
             parms += " -DWORK_LENGTH_" + std::to_string(i) + "=" + std::to_string(worker_sizes[i]);
@@ -1786,8 +1740,8 @@ void CopyTensor(Handle& handle,
             std::size_t wld = 256 < wgd ? 256 : wgd;
 
             std::string parms = "-DSUBTENSOR_OP_WITH_SUBTENSOR=SUBTENSOR_OP_WITH_SUBTENSOR_COPY" +
-                                parms_half_or_float(srcDesc_flat.GetType());
-            for(int i = 0; i < srcDim_flat; ++i)
+                                GetDataTypeKernelParams(srcDesc_flat.GetType());
+            for(unsigned long i = 0; i < srcDim_flat; ++i)
             {
                 parms +=
                     " -DWORK_LENGTH_" + std::to_string(i) + "=" + std::to_string(worker_sizes[i]);
@@ -1922,6 +1876,13 @@ void CastTensor(Handle& handle,
         MIOPEN_THROW(miopenStatusBadParm, "Tensor dimension lengths do not match.");
     }
 
+    if(srcDesc.GetType() == miopenInt8x4 || dstDesc.GetType() == miopenInt8x4 ||
+       srcDesc.GetType() == miopenBFloat16 || dstDesc.GetType() == miopenBFloat16)
+    {
+        MIOPEN_THROW(miopenStatusBadParm,
+                     "Tensor cast operation is not supported for int8, int8x4, and bfloat16.");
+    }
+
     auto flat_descriptors = GetConsistentFlattenedTensorDescriptors(srcDesc, dstDesc);
     const TensorDescriptor& srcDesc_flat = std::get<0>(flat_descriptors);
     const TensorDescriptor& dstDesc_flat = std::get<1>(flat_descriptors);
@@ -1997,12 +1958,7 @@ void CastTensor(Handle& handle,
                                          ? 1
                                          : dstDesc_flat.GetType() == miopenHalf ? 2 : 3);
 
-            if(!float_equal(miopen_alpha, 1.0))
-            {
-                parms += " -DALPHA";
-            }
-
-            for(int i = 0; i < srcDim_flat; ++i)
+            for(unsigned long i = 0; i < srcDim_flat; ++i)
             {
                 parms +=
                     " -DWORK_LENGTH_" + std::to_string(i) + "=" + std::to_string(worker_sizes[i]);
@@ -2132,14 +2088,12 @@ void TransformTensor(Handle& handle,
         MIOPEN_THROW(miopenStatusBadParm);
     }
 
-    std::vector<int> x_len(4);
-    std::vector<int> y_len(4);
-    std::tie(x_len[0], x_len[1], x_len[2], x_len[3]) = tien<4>(xDesc.GetLengths());
-    std::tie(y_len[0], y_len[1], y_len[2], y_len[3]) = tien<4>(yDesc.GetLengths());
+    auto x_len = xDesc.GetLengths();
+    auto y_len = yDesc.GetLengths();
 
-    if(x_len.size() != 4 || y_len.size() != 4)
+    if(x_len.size() != y_len.size())
     {
-        MIOPEN_THROW("Tensor dimension must be 4");
+        MIOPEN_THROW("Tensor dimension must be the same");
     }
 
     if(x_len[0] != y_len[0])
@@ -2147,13 +2101,18 @@ void TransformTensor(Handle& handle,
         MIOPEN_THROW("Tensor x and y batch sizes do not match");
     }
 
+    auto x_y_len          = boost::combine(x_len, y_len);
+    bool same_spatial_len = std::all_of(x_y_len.begin() + 2, x_y_len.end(), [](auto v) {
+        return boost::get<0>(v) == boost::get<1>(v);
+    });
+
+    if(!same_spatial_len)
+    {
+        MIOPEN_THROW("Tensor x and y spatial sizes do not match");
+    }
+
     if(xDesc.GetType() == miopenInt8 && yDesc.GetType() == miopenInt8)
     {
-        if(x_len[2] != y_len[2] || x_len[3] != y_len[3])
-        {
-            MIOPEN_THROW("Tensor x and y height or width sizes do not match");
-        }
-
         if(x_len[1] <= y_len[1])
         {
             if(x_len[1] <= (y_len[1] - 4) || y_len[1] % 4 != 0)
@@ -2175,13 +2134,13 @@ void TransformTensor(Handle& handle,
         y_len[0] = 1;
 
         miopen::TensorDescriptor x_batch_desc, y_batch_desc;
-        x_batch_desc = miopen::TensorDescriptor(miopenInt8, x_len.data(), 4);
-        y_batch_desc = miopen::TensorDescriptor(miopenInt8, y_len.data(), 4);
+        x_batch_desc = miopen::TensorDescriptor(miopenInt8, x_len);
+        y_batch_desc = miopen::TensorDescriptor(miopenInt8, y_len);
 
         size_t x_batch_sz = x_batch_desc.GetElementSize();
         size_t y_batch_sz = y_batch_desc.GetElementSize();
 
-        for(int i = 0; i < batch_n; i++)
+        for(unsigned long i = 0; i < batch_n; i++)
         {
             size_t x_offset = i * x_batch_sz;
             size_t y_offset = i * y_batch_sz;
@@ -2194,10 +2153,28 @@ void TransformTensor(Handle& handle,
                        x_offset,
                        y_offset);
         }
-
-        (void)alpha;
-        (void)beta;
     }
+    else if(xDesc.GetType() == miopenInt8 && yDesc.GetType() == miopenInt8x4)
+    {
+        if(x_len[1] <= (y_len[1] - 4) || y_len[1] % 4 != 0)
+        {
+            MIOPEN_THROW("Invalid y channel size");
+        }
+
+        transpose_NCHW2Vec(handle, x_len, x, y, 4, false, true);
+    }
+    else if(xDesc.GetType() == miopenInt8x4 && yDesc.GetType() == miopenInt8)
+    {
+        if(y_len[1] <= (x_len[1] - 4) || x_len[1] % 4 != 0)
+        {
+            MIOPEN_THROW("Invalid x channel size");
+        }
+
+        transpose_NCHW2Vec(handle, y_len, x, y, 4, false, false);
+    }
+
+    (void)alpha;
+    (void)beta;
 }
 
 } // namespace miopen

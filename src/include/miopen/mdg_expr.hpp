@@ -1,18 +1,24 @@
-#pragma once
+#ifndef MIOPEN_MDG_EXPR_H
+#define MIOPEN_MDG_EXPR_H
+
 // #define BOOST_SPIRIT_DEBUG
 
 #include <miopen/common.hpp>
 #include <miopen/errors.hpp>
+#include <miopen/logger.hpp>
 
 #include <cassert>
 #include <memory>
 #include <iostream>
 #include <unordered_map>
+// Workaround tidy issues when using BOOST_FOREACH
+#ifdef MIOPEN_USE_CLANG_TIDY
+#define BOOST_FOREACH(x, y) for(x : y) // NOLINT
+#endif
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix.hpp>
 #include <boost/fusion/adapted.hpp>
 #include <boost/spirit/include/support_utree.hpp>
-
 #include <miopen/fusion_ops.hpp>
 
 namespace miopen {
@@ -121,11 +127,8 @@ struct tree_visit
             {
                 r.res = tabl.at(sym);
             }
-            // else
-            // {
-            //     MIOPEN_THROW("Symbol: " + sym + " accessed before being assigned in constaint");
-            // }
-            r.sym = sym;
+            else
+                r.sym = sym;
         }
         return r;
     }
@@ -186,6 +189,12 @@ struct tree_visit
         lhs_res = boost::spirit::utree::visit(v[1], *this);
         rhs_res = boost::spirit::utree::visit(v[2], *this);
 
+        if(op_res.op != OpAssign && !lhs_res.sym.empty())
+        {
+            std::string sym = lhs_res.sym;
+            MIOPEN_THROW("Invalid variable access: " + sym);
+        }
+
         switch(op_res.op)
         {
         // Arith ops
@@ -204,6 +213,9 @@ struct tree_visit
         }
         case OpAssign:
         {
+            int val = 0;
+            if(var_lookup(lhs_res.sym, val))
+                MIOPEN_THROW("Invalid variable assignment: " + lhs_res.sym);
             MIOPEN_LOG_I2(" Adding variable: " + lhs_res.sym);
             r.tabl[lhs_res.sym] = rhs_res.res;
             r.b_res             = true;
@@ -253,3 +265,5 @@ struct tree_visit
     visit_res operator()(spirit::function_base const&) const { return visit_res(); }
 };
 } // namespace miopen
+
+#endif

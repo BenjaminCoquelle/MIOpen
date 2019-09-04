@@ -38,11 +38,19 @@
 #define MIOPEN_USE_FP16 0
 #endif
 
-#ifndef MIOPEN_USE_INTE8
-#define MIOPEN_USE_INTE8 0
+#ifndef MIOPEN_USE_BFP16
+#define MIOPEN_USE_BFP16 0
 #endif
 
-#if MIOPEN_USE_INTE8 == 1
+#ifndef MIOPEN_USE_INT8
+#define MIOPEN_USE_INT8 0
+#endif
+
+#ifndef MIOPEN_USE_INT8x4
+#define MIOPEN_USE_INT8x4 0
+#endif
+
+#if MIOPEN_USE_INT8 == 1 || MIOPEN_USE_INT8x4 == 1
 #define _FLOAT char
 #ifndef FLT_MAX
 #define MAX_VAL 127 /* max value */
@@ -58,6 +66,10 @@
 #else
 #define MAX_VAL HALF_MAX
 #endif
+#endif
+#if MIOPEN_USE_BFP16 == 1
+#define _FLOAT ushort
+#define MAX_VAL 0x7F7F /* max value */
 #endif
 #if MIOPEN_USE_FP32 == 1
 #define _FLOAT float

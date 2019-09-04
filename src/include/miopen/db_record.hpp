@@ -31,6 +31,7 @@
 #include <miopen/logger.hpp>
 
 #include <cassert>
+#include <istream>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -69,43 +70,74 @@ class DbRecord
 {
     public:
     template <class TValue>
-    class Iterator
+    class Iterator : public std::iterator<std::input_iterator_tag, std::pair<std::string, TValue>>
     {
         friend class DbRecord;
 
         using InnerIterator = std::unordered_map<std::string, std::string>::const_iterator;
 
         public:
-        std::pair<const std::string&, TValue> operator*() const
+        using Value = std::pair<std::string, TValue>;
+
+        Value operator*() const
         {
-            assert(it != InnerIterator{});
-            TValue value;
-            value.Deserialize(it->second);
-            return {it->first, value};
+            assert(it != container.end());
+            return value;
+        }
+
+        const Value* operator->() const
+        {
+            assert(it != container.end());
+            return &value;
+        }
+
+        Value* operator->()
+        {
+            assert(it != container.end());
+            return &value;
         }
 
         Iterator& operator++()
         {
             ++it;
+            value = GetValue(it, container);
             return *this;
         }
 
-        const Iterator operator++(int) { return Iterator{it++}; }
+        const Iterator operator++(int) // NOLINT (readability-const-return-type)
+        {
+            auto ret = *this;
+            ++(*this);
+            return ret;
+        }
 
         bool operator==(const Iterator& other) const { return it == other.it; }
         bool operator!=(const Iterator& other) const { return it != other.it; }
 
         private:
-        Iterator(const InnerIterator it_) : it(it_) {}
         InnerIterator it;
+        const std::unordered_map<std::string, std::string>& container;
+        Value value;
+
+        Iterator(const InnerIterator it_, const std::unordered_map<std::string, std::string>& container_) : it(it_), container(container_), value(GetValue(it_, container_)) {}
+
+        static Value GetValue(InnerIterator it, const std::unordered_map<std::string, std::string>& container)
+        {
+            if(it == container.end())
+                return {};
+
+            auto value = TValue{};
+            value.Deserialize(it->second);
+            return {it->first, value};
+        }
     };
 
     template <class TValue>
     class IterationHelper
     {
         public:
-        Iterator<TValue> begin() const { return {record.map.begin()}; }
-        Iterator<TValue> end() const { return {record.map.end()}; }
+        Iterator<TValue> begin() const { return {record.map.begin(), record.map}; }
+        Iterator<TValue> end() const { return {record.map.end(), record.map}; }
 
         private:
         IterationHelper(const DbRecord& record_) : record(record_) {}
@@ -128,12 +160,18 @@ class DbRecord
         return ss.str();
     }
 
-    bool ParseContents(const std::string& contents);
+    bool ParseContents(std::istream& contents);
     void WriteContents(std::ostream& stream) const;
     bool SetValues(const std::string& id, const std::string& values);
     bool GetValues(const std::string& id, std::string& values) const;
 
     DbRecord(const std::string& key_) : key(key_) {}
+
+    bool ParseContents(const std::string& contents)
+    {
+        auto ss = std::istringstream(contents);
+        return ParseContents(ss);
+    }
 
     public:
     /// T shall provide a db KEY by means of the "void Serialize(std::ostream&) const" member
@@ -142,6 +180,10 @@ class DbRecord
     DbRecord(const T& problem_config_) : DbRecord(Serialize(problem_config_))
     {
     }
+
+    auto GetSize() const { return map.size(); }
+
+    const std::string& GetKey() const { return key; }
 
     /// Merges data from this record to data from that record if their keys are same.
     /// This record would contain all ID:VALUES pairs from that record that are not in this.
@@ -194,6 +236,7 @@ class DbRecord
     }
 
     friend class Db;
+    friend class ReadonlyRamDb;
 };
 
 } // namespace miopen

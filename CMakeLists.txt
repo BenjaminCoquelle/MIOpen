@@ -31,9 +31,6 @@ if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 ############################################################
-# require C++14
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED_ON)
 
 if(WIN32)
     set (RIF_BUILD 1 CACHE BOOL "1")
@@ -80,15 +77,18 @@ include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
 
+option( BUILD_DEV "Build for development only" OFF)
+
 # Strip symbols for release
 if(NOT WIN32 AND NOT APPLE)
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
 endif()
 
-rocm_setup_version(VERSION 1.7.1)
+rocm_setup_version(VERSION 2.0.1)
 
-
+list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )
+include(TargetFlags)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.3")
@@ -112,7 +112,8 @@ endif()
 # OPTION - MIOpen Backend
 # - OpenCL
 # - HCC
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*hipcc")
+check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)
+if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*hipcc" OR HAS_HIP)
     set(MIOPEN_DEFAULT_BACKEND "HIP")
 else()
     set(MIOPEN_DEFAULT_BACKEND "OpenCL")
@@ -124,25 +125,44 @@ else()
     set(WINE_CMD)
 endif()
 
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hcc /opt/rocm/hip)
+
 option(ENABLE_HIP_WORKAROUNDS Off)
-if(ENABLE_HIP_WORKAROUNDS)
-    # Add these to CMAKE_PREFIX_PATH to workaround installation problems with hip and hcc
-    list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hcc /opt/rocm/hip)
-endif()
 
 set( MIOPEN_BACKEND ${MIOPEN_DEFAULT_BACKEND} CACHE STRING
     "Which of MIOpens's backends to use?" )
 set_property( CACHE MIOPEN_BACKEND PROPERTY STRINGS
     OpenCL HIP HIPOC )
+
+if(NOT WIN32 AND NOT APPLE)
+    find_package(hip REQUIRED PATHS /opt/rocm)
+    target_flags(HIP_COMPILER_FLAGS hip::device)
+endif()
+
+message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+
+add_definitions("-DHIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}")
+
 # OpenCL 1.2
 if( MIOPEN_BACKEND STREQUAL "OpenCL")
     set(MIOPEN_BACKEND_OPENCL 1)
     find_package( OpenCL REQUIRED )
+    if(NOT WIN32 AND NOT APPLE)
+        find_program(MIOPEN_HIP_COMPILER hcc
+            PATH_SUFFIXES bin
+            PATHS /opt/rocm
+        )
+    
+        if(MIOPEN_HIP_COMPILER)
+            message("hip compiler: ${MIOPEN_HIP_COMPILER}")
+        else()
+            message(FATAL_ERROR "hip compiler not found")
+        endif()
+    endif()
 endif()
 
 # HIP
 if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC")
-    list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip /opt/rocm/hcc)
     set(MIOPEN_BACKEND_HIP 1)
     find_program(HIP_OC_COMPILER clang-ocl
         PATH_SUFFIXES bin
@@ -154,16 +174,24 @@ if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC")
     else()
         message(FATAL_ERROR "clang-ocl not found")
     endif()
-    find_package(hip REQUIRED)
-    link_libraries(stdc++)
+    
+    if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
+        link_libraries(stdc++)
 
-    # A hack to make this work without the device enumerator
-    link_libraries(-amdgpu-target=gfx803 -amdgpu-target=gfx900 -Wno-unused-command-line-argument)
-    CHECK_CXX_COMPILER_FLAG(-amdgpu-target=gfx906 -Werror, GFX_906_FLAG_VALID)
-    if(GFX_906_FLAG_VALID)
-        link_libraries(-amdgpu-target=gfx906)
+        # A hack to make this work without the device enumerator
+        link_libraries(-amdgpu-target=gfx803 -amdgpu-target=gfx900 -Wno-unused-command-line-argument)
+        CHECK_CXX_COMPILER_FLAG("-amdgpu-target=gfx906 -Werror" GFX_906_FLAG_VALID)
+        if(GFX_906_FLAG_VALID)
+            link_libraries(-amdgpu-target=gfx906)
+        endif()
+        # end hack
+    else()
+        # Hcc's clang always defines __HCC__ even when not using hcc driver
+        add_definitions(-U__HCC__)
     endif()
-    # end hack
+
+    set(MIOPEN_HIP_COMPILER ${CMAKE_CXX_COMPILER} CACHE PATH "")
+
 
     # rocblas
     set(MIOPEN_USE_ROCBLAS ON CACHE BOOL "")
@@ -176,14 +204,28 @@ if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC")
 endif()
 message( STATUS "${MIOPEN_BACKEND} backend selected." )
 
-# Online assembler
-find_program(MIOPEN_AMDGCN_ASSEMBLER
-    NAMES clang
-    PATHS ${MIOPEN_AMDGCN_ASSEMBLER_PATH} /opt/rocm
-    PATH_SUFFIXES /opencl/bin/x86_64
-    NO_DEFAULT_PATH
-)
-message(STATUS "AMDGCN assembler: ${MIOPEN_AMDGCN_ASSEMBLER}")
+if(NOT WIN32 AND NOT APPLE)
+    # look for and register extractkernel
+    find_program(EXTRACTKERNEL_BIN extractkernel
+        PATH_SUFFIXES bin
+        PATHS /opt/rocm
+    )
+    if(EXTRACTKERNEL_BIN)
+        message(STATUS "extractkernel found: ${EXTRACTKERNEL_BIN}")
+        set(EXTRACTKERNEL_BIN "${EXTRACTKERNEL_BIN}")
+    else()
+        message(FATAL_ERROR "extractkernel not found")
+    endif()
+
+    # Online assembler
+    find_program(MIOPEN_AMDGCN_ASSEMBLER
+        NAMES clang
+        PATHS ${MIOPEN_AMDGCN_ASSEMBLER_PATH} /opt/rocm
+        PATH_SUFFIXES /opencl/bin/x86_64
+        NO_DEFAULT_PATH
+    )
+    message(STATUS "AMDGCN assembler: ${MIOPEN_AMDGCN_ASSEMBLER}")
+endif()
 
 # miopengemm
 if(NOT MSVC_IDE AND NOT RIF_BUILD)
@@ -207,7 +249,7 @@ find_path(HALF_INCLUDE_DIR NAMES half.hpp HINTS "./src/include")
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
-option( BUILD_DEV "Build for development only" OFF)
+option( MIOPEN_DEBUG_FIND_DB_CACHING "Use system find-db caching" ON)
 
 set( MIOPEN_INSTALL_DIR miopen)
 set( DATA_INSTALL_DIR ${MIOPEN_INSTALL_DIR}/${CMAKE_INSTALL_DATAROOTDIR}/miopen )
@@ -215,26 +257,23 @@ set( DATA_INSTALL_DIR ${MIOPEN_INSTALL_DIR}/${CMAKE_INSTALL_DATAROOTDIR}/miopen 
 set(MIOPEN_GPU_SYNC Off CACHE BOOL "")
 if(BUILD_DEV)
     set(MIOPEN_BUILD_DEV 1)
-    set(MIOPEN_DB_PATH "${CMAKE_SOURCE_DIR}/src/kernels" CACHE PATH "Default path to search for installed db")
-    set(MIOPEN_USER_DB_PATH "${CMAKE_SOURCE_DIR}/src/kernels" CACHE PATH "Default path to search for user db")
-    set(MIOPEN_FIND_DB_PATH "${CMAKE_SOURCE_DIR}/src/kernels" CACHE PATH "Default path to search for find db")
+    set(MIOPEN_SYSTEM_DB_PATH "${CMAKE_SOURCE_DIR}/src/kernels" CACHE PATH "Default path of system db files")
+    set(MIOPEN_USER_DB_PATH "${CMAKE_SOURCE_DIR}/src/kernels" CACHE PATH "Default path of user db files")
     set(MIOPEN_CACHE_DIR "" CACHE STRING "")
-
 else()
     set(MIOPEN_BUILD_DEV 0)
     if(RIF_BUILD)
-        set(MIOPEN_DB_PATH "${CMAKE_DB_PATH}/kernels" CACHE PATH "Default path to search for installed db")
-        set(MIOPEN_USER_DB_PATH "${HOME_DIR}/miopen/kernels" CACHE PATH "Default path to search for user db")
-        set(MIOPEN_CACHE_DIR "${HOME_DIR}/miopen/cacheKernel" CACHE STRING "")
+        set(MIOPEN_SYSTEM_DB_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_INSTALL_DIR}/db" CACHE PATH "Default path of system db files")
+        set(MIOPEN_USER_DB_PATH "${HOME_DIR}/miopen/" CACHE STRING "Default path of user db files")
+        set(MIOPEN_CACHE_DIR "${HOME_DIR}/miopen/" CACHE STRING "")
     else()
         set(MIOPEN_DB_PATH "${CMAKE_INSTALL_PREFIX}/${DATA_INSTALL_DIR}/kernels" CACHE PATH "Default path to search for installed db")
         set(MIOPEN_USER_DB_PATH "~/.config/miopen/" CACHE STRING "Default path to search for user db")
         set(MIOPEN_CACHE_DIR "~/.cache/miopen/" CACHE STRING "")
     endif()
-
-    set(MIOPEN_FIND_DB_PATH "~/.config/miopen/" CACHE STRING "Default path to search for find db")
-
 endif()
+set(MIOPEN_USER_FIND_DB_SUFFIX "${MIOPEN_BACKEND}.${MIOpen_VERSION_MAJOR}_${MIOpen_VERSION_MINOR}_${MIOpen_VERSION_PATCH}" CACHE PATH "Filename suffix for the user find-db files")
+set(MIOPEN_SYSTEM_FIND_DB_SUFFIX "${MIOPEN_BACKEND}" CACHE PATH "Filename suffix for the system find-db files")
 
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "rocm-opencl-dev, rocm-utils, hip_hcc, miopengemm")
 set(CPACK_RPM_PACKAGE_REQUIRES "rocm-opencl-devel, rocm-utils, hip_hcc, miopengemm")
@@ -248,23 +287,35 @@ rocm_create_package(
 )
 
 include(EnableCompilerWarnings)
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*hipcc" )
-    set(CLANG_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
+set(MIOPEN_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
+if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
+    set(MIOPEN_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
+elseif(MIOPEN_BACKEND STREQUAL "HIP")
+    set(MIOPEN_TIDY_ERRORS ALL)
 endif()
+
 include(ClangTidy)
 enable_clang_tidy(
     CHECKS
         *
-        -cert-env33-c
         -android-cloexec-fopen
         # Yea we shouldn't be using rand()
         -cert-msc30-c
+        -bugprone-exception-escape
+        -cert-env33-c
+        -cert-msc32-c
         -cert-msc50-cpp
+        -cert-msc51-cpp
         -clang-analyzer-alpha.core.CastToStruct
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-unused-command-line-argument
+        -cppcoreguidelines-avoid-c-arrays
+        -cppcoreguidelines-avoid-magic-numbers
+        -cppcoreguidelines-explicit-virtual-functions
+        -cppcoreguidelines-macro-usage
+        -cppcoreguidelines-non-private-member-variables-in-classes
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
@@ -284,21 +335,33 @@ enable_clang_tidy(
         -hicpp-no-array-decay
         # We really shouldn't use bitwise operators with signed integers, but
         # opencl leaves us no choice
+        -hicpp-avoid-c-arrays
         -hicpp-signed-bitwise
         -hicpp-special-member-functions
+        -hicpp-uppercase-literal-suffix
+        -hicpp-use-auto
         -hicpp-use-equals-default
         -hicpp-use-override
         -llvm-header-guard
         -llvm-include-order
         -misc-misplaced-const
+        -misc-non-private-member-variables-in-classes
+        -modernize-avoid-c-arrays
         -modernize-pass-by-value
+        -modernize-use-auto
         -modernize-use-default-member-init
         -modernize-use-equals-default
+        -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-unnecessary-value-param
         -readability-braces-around-statements
         -readability-else-after-return
+        -readability-isolate-declaration
+        -readability-magic-numbers
         -readability-named-parameter
+        -readability-uppercase-literal-suffix
+        ${MIOPEN_TIDY_CHECKS}
+        ${MIOPEN_TIDY_ERRORS}
         -hicpp-use-auto
         -modernize-use-auto
         ${CLANG_TIDY_CHECKS}
@@ -327,6 +390,10 @@ enable_cppcheck(
         # Ignore initializer lists in the tests
         useInitializationList:*test/*.cpp
         *:*.cl
+        *:*src/kernels/*.h
+        knownConditionTrueFalse:*src/kernels/composable_kernel/*/*
+        wrongPrintfScanfArgNum:*src/kernels/composable_kernel/*/*
+        unusedScopedObject:*src/kernels/composable_kernel/*/*
     FORCE
     SOURCES
         addkernels/

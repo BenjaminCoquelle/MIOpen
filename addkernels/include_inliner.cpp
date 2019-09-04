@@ -83,9 +83,10 @@ void IncludeInliner::Process(std::istream& input,
                              const std::string& root,
                              const std::string& file_name,
                              const std::string& directive,
-                             bool allow_angle_brackets)
+                             bool allow_angle_brackets,
+                             bool recurse)
 {
-    ProcessCore(input, output, root, file_name, 0, directive, allow_angle_brackets);
+    ProcessCore(input, output, root, file_name, 0, directive, allow_angle_brackets, recurse);
 }
 
 void IncludeInliner::ProcessCore(std::istream& input,
@@ -94,7 +95,8 @@ void IncludeInliner::ProcessCore(std::istream& input,
                                  const std::string& file_name,
                                  int line_number,
                                  const std::string& directive,
-                                 bool allow_angle_brackets)
+                                 bool allow_angle_brackets,
+                                 bool recurse)
 {
     if(_include_depth >= include_depth_limit)
         throw InlineStackOverflowException(GetIncludeStackTrace(0));
@@ -107,7 +109,8 @@ void IncludeInliner::ProcessCore(std::istream& input,
 
     while(!input.eof())
     {
-        std::string line, word;
+        std::string line;
+        std::string word;
         std::getline(input, line);
         std::istringstream line_parser(line);
         line_parser >> word;
@@ -125,7 +128,7 @@ void IncludeInliner::ProcessCore(std::istream& input,
             continue;
         }
 
-        if(!word.empty() && word == directive)
+        if(!word.empty() && word == directive && recurse)
         {
             auto first_quote_pos = line.find('"', static_cast<int>(line_parser.tellg()) + 1);
             std::string::size_type second_quote_pos;
@@ -162,7 +165,6 @@ void IncludeInliner::ProcessCore(std::istream& input,
                 throw IncludeNotFoundException(include_file_path,
                                                GetIncludeStackTrace(current_line));
             }
-
             std::ifstream include_file(abs_include_file_path, std::ios::in);
 
             if(!include_file.good())
@@ -175,7 +177,8 @@ void IncludeInliner::ProcessCore(std::istream& input,
                         include_file_path,
                         current_line,
                         directive,
-                        allow_angle_brackets);
+                        allow_angle_brackets,
+                        recurse);
         }
         else
         {
