@@ -390,8 +390,8 @@ ConvolutionDescriptor::WrwGetValidWorkSpaceSizeGemm(const TensorDescriptor& dyDe
 
     MIOPEN_THROW(miopenStatusNotImplemented);
 #else
-    (void)dyDesc;
-    (void)dwDesc;
+    std::ignore = dwDesc;
+    std::ignore = dyDesc;
     return 0;
 #endif
 }
