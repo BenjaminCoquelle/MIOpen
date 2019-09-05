@@ -74,26 +74,27 @@ class DbRecord
     {
         friend class DbRecord;
 
-        using InnerIterator = std::unordered_map<std::string, std::string>::const_iterator;
+        using Container = std::unordered_map<std::string, std::string>;
+        using InnerIterator = Container::const_iterator;
 
         public:
         using Value = std::pair<std::string, TValue>;
 
         Value operator*() const
         {
-            assert(it != container.end());
+            assert(it != container->end());
             return value;
         }
 
         const Value* operator->() const
         {
-            assert(it != container.end());
+            assert(it != container->end());
             return &value;
         }
 
         Value* operator->()
         {
-            assert(it != container.end());
+            assert(it != container->end());
             return &value;
         }
 
@@ -116,14 +117,17 @@ class DbRecord
 
         private:
         InnerIterator it;
-        const std::unordered_map<std::string, std::string>& container;
+        const Container* container;
         Value value;
 
-        Iterator(const InnerIterator it_, const std::unordered_map<std::string, std::string>& container_) : it(it_), container(container_), value(GetValue(it_, container_)) {}
-
-        static Value GetValue(InnerIterator it, const std::unordered_map<std::string, std::string>& container)
+        Iterator(const InnerIterator it_, const Container* container_)
+            : it(it_), container(container_), value(GetValue(it_, container))
         {
-            if(it == container.end())
+        }
+
+        static Value GetValue(InnerIterator it, const Container* container)
+        {
+            if(it == container->end())
                 return {};
 
             auto value = TValue{};
@@ -136,8 +140,8 @@ class DbRecord
     class IterationHelper
     {
         public:
-        Iterator<TValue> begin() const { return {record.map.begin(), record.map}; }
-        Iterator<TValue> end() const { return {record.map.end(), record.map}; }
+        Iterator<TValue> begin() const { return {record.map.begin(), &record.map}; }
+        Iterator<TValue> end() const { return {record.map.end(), &record.map}; }
 
         private:
         IterationHelper(const DbRecord& record_) : record(record_) {}
