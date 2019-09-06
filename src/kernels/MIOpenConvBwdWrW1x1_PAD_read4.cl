@@ -207,51 +207,13 @@
 
 #endif
 
-#define PPCAT_NX(A, B) A##B
-#define PPCAT(A, B) PPCAT_NX(A, B)
-#define TWO 2
-#define FOUR 4
-#define EIGHT 8
-
-#if MIOPEN_USE_FP16 == 1
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-#define _FLOAT half
-#ifndef HALF_MAX
-#define MAX_VAL 65504 /* max value */
-#else
-#define MAX_VAL HALF_MAX
-#endif
-#endif
-#if MIOPEN_USE_FP32 == 1
-#define _FLOAT float
-#ifndef FLT_MAX
-#define MAX_VAL 3.402823466e+38F /* max value */
-#else
-#define MAX_VAL FLT_MAX
-#endif
-#endif
-
-#define _FLOAT2 PPCAT(_FLOAT, TWO)
-#define _FLOAT4 PPCAT(_FLOAT, FOUR)
-#define _FLOAT8 PPCAT(_FLOAT, EIGHT)
+#include "float_types.h"
 
 #define UNUSED __attribute__((__unused__))
-#define INLINE __attribute__((always_inline))
+#define INLINE
 #define DBG_OUT_OF_RNGE 0
 
-INLINE
-uint iDiv(uint v, uint d)
-{
-    uint r = (uint)((float)v * (1.0f / (float)d) + 0.000001f);
-    return (r);
-}
-
-INLINE
-uint iMod(uint v, uint u, uint d)
-{
-    uint r = v - mul24(u, d);
-    return (r);
-}
+#include "math_ops.h"
 
 // top_df        ==> out        in [Batch][output][out_H][out_W]
 // bot           ==> gard_input in [Batch][inputs][IN_H][IN_W]
@@ -298,14 +260,14 @@ MIOpenCvBwdWrW_8x8map(const __global _FLOAT* __restrict top_df,
     __private _FLOAT load_buf_top[MLO_N_LCL_OUT_MAPS * MLO_READ_UNIT];
     __private _FLOAT load_buf_bot[MLO_N_LCL_IN_MAPS * MLO_READ_UNIT];
 
-    __private _FLOAT accum[MLO_ACCUM_SZ];
+    __private _FLOAT_ACCUM accum[MLO_ACCUM_SZ];
 
     // CNHW will be continous address to utlize X4 load;
     // NCHW will be hard mode till now
 
     for(uint i = 0; i < MLO_ACCUM_SZ; i++)
     {
-        accum[i] = (_FLOAT)(0);
+        accum[i] = (_FLOAT_ACCUM)0;
     }
 
     for(uint i = 0; i < MLO_N_LCL_IN_MAPS; i++)
@@ -323,7 +285,7 @@ MIOpenCvBwdWrW_8x8map(const __global _FLOAT* __restrict top_df,
         uint faked_off2 =
             iMod(faked_off, batch_id, ((MLO_OUT_PAD_WIDTH / MLO_READ_UNIT) * MLO_OUT_PAD_HEIGHT));
 
-        uint out_y_off = iDiv(faked_off2, (MLO_OUT_PAD_WIDTH / MLO_READ_UNIT));
+        uint out_y_off = iDiv_legacy(faked_off2, (MLO_OUT_PAD_WIDTH / MLO_READ_UNIT));
         uint out_x_off =
             iMod(faked_off2, out_y_off, (MLO_OUT_PAD_WIDTH / MLO_READ_UNIT)) * MLO_READ_UNIT;
 
@@ -576,7 +538,7 @@ MIOpenCvBwdWrW_16x16map(const __global _FLOAT* __restrict top_df,
         uint faked_off2 =
             iMod(faked_off, batch_id, ((MLO_OUT_PAD_WIDTH / MLO_READ_UNIT) * MLO_OUT_PAD_HEIGHT));
 
-        uint out_y_off = iDiv(faked_off2, (MLO_OUT_PAD_WIDTH / MLO_READ_UNIT));
+        uint out_y_off = iDiv_legacy(faked_off2, (MLO_OUT_PAD_WIDTH / MLO_READ_UNIT));
         uint out_x_off =
             iMod(faked_off2, out_y_off, (MLO_OUT_PAD_WIDTH / MLO_READ_UNIT)) * MLO_READ_UNIT;
 
@@ -589,7 +551,7 @@ MIOpenCvBwdWrW_16x16map(const __global _FLOAT* __restrict top_df,
         uint in_image_off = in_y_off * MLO_IN_STRIDE + in_x_off;
 #endif
 #if 0 // PER_ROW which will be enabled after SGPR offset is enabled.
-        uint batch_id   = iDiv( faked_off,  (MLO_OUT_PAD_WIDTH ));
+        uint batch_id   = iDiv_legacy( faked_off,  (MLO_OUT_PAD_WIDTH ));
         uint faked_off2 = iMod( faked_off,  batch_id, (MLO_OUT_PAD_WIDTH ));
 
         uint out_x_off = 0;

@@ -29,9 +29,11 @@
 #include <algorithm>
 #include <array>
 #include <iostream>
-#include <miopen/each_args.hpp>
 #include <sstream>
 #include <type_traits>
+
+#include <miopen/each_args.hpp>
+#include <miopen/object.hpp>
 
 #ifdef _MSC_VER
 #define __PRETTY_FUNCTION__ __FUNCSIG__
@@ -189,18 +191,17 @@ enum class LoggingLevel
     Warning = 4, // All errors and warnings.
     Info    = 5, // All above plus information for debugging purposes.
     Info2   = 6, // All above  plus more detailed information for debugging.
-    Trace   = 7  // The most detailed debugging messages (not used so far).
+    Trace   = 7  // The most detailed debugging messages
 };
 
 const char* LoggingLevelToCString(LoggingLevel level);
-
-std::string PlatformName();
+std::string LoggingPrefix();
 
 /// \return true if level is enabled.
 /// \param level - one of the values defined in LoggingLevel.
 bool IsLogging(LoggingLevel level = LoggingLevel::Error);
 bool IsLoggingCmd();
-bool IsLoggingTraceDetailed();
+bool IsLoggingFunctionCalls();
 
 template <class T>
 auto LogObjImpl(T* x) -> decltype(get_object(*x))
@@ -216,7 +217,7 @@ inline const void* LogObjImpl(const void* x) { return x; }
 template <class T, typename std::enable_if<(std::is_pointer<T>{}), int>::type = 0>
 std::ostream& LogParam(std::ostream& os, std::string name, const T& x)
 {
-    os << name << " = ";
+    os << '\t' << name << " = ";
     if(x == nullptr)
         os << "nullptr";
     else
@@ -227,42 +228,72 @@ std::ostream& LogParam(std::ostream& os, std::string name, const T& x)
 template <class T, typename std::enable_if<(not std::is_pointer<T>{}), int>::type = 0>
 std::ostream& LogParam(std::ostream& os, std::string name, const T& x)
 {
-    os << name << " = " << get_object(x);
+    os << '\t' << name << " = " << get_object(x);
     return os;
 }
-#define MIOPEN_LOG_FUNCTION_EACH(param) miopen::LogParam(std::cerr, #param, param) << std::endl;
 
-#define MIOPEN_LOG_FUNCTION(...)                                                                \
-    if(miopen::IsLoggingTraceDetailed())                                                        \
-    {                                                                                           \
-        std::cerr << miopen::PlatformName() << ": " << __PRETTY_FUNCTION__ << "{" << std::endl; \
-        MIOPEN_PP_EACH_ARGS(MIOPEN_LOG_FUNCTION_EACH, __VA_ARGS__)                              \
-        std::cerr << "}" << std::endl;                                                          \
-    }
+#define MIOPEN_LOG_FUNCTION_EACH(param)                                         \
+    do                                                                          \
+    {                                                                           \
+        /* Clear temp stringstream & reset its state: */                        \
+        std::ostringstream().swap(miopen_log_func_ss);                          \
+        /* Use stringstram as ostream to engage existing template functions: */ \
+        std::ostream& miopen_log_func_ostream = miopen_log_func_ss;             \
+        miopen_log_func_ostream << miopen::LoggingPrefix();                     \
+        miopen::LogParam(miopen_log_func_ostream, #param, param) << std::endl;  \
+        std::cerr << miopen_log_func_ss.str();                                  \
+    } while(false);
+
+#define MIOPEN_LOG_FUNCTION(...)                                                        \
+    do                                                                                  \
+        if(miopen::IsLoggingFunctionCalls())                                            \
+        {                                                                               \
+            std::ostringstream miopen_log_func_ss;                                      \
+            miopen_log_func_ss << miopen::LoggingPrefix() << __PRETTY_FUNCTION__ << "{" \
+                               << std::endl;                                            \
+            std::cerr << miopen_log_func_ss.str();                                      \
+            MIOPEN_PP_EACH_ARGS(MIOPEN_LOG_FUNCTION_EACH, __VA_ARGS__)                  \
+            std::ostringstream().swap(miopen_log_func_ss);                              \
+            miopen_log_func_ss << miopen::LoggingPrefix() << "}" << std::endl;          \
+            std::cerr << miopen_log_func_ss.str();                                      \
+        }                                                                               \
+    while(false)
 #else
 #define MIOPEN_LOG_FUNCTION(...)
 #endif
 
 std::string LoggingParseFunction(const char* func, const char* pretty_func);
 
-#define MIOPEN_LOG(level, ...)                                                              \
-    do                                                                                      \
-    {                                                                                       \
-        if(miopen::IsLogging(level))                                                        \
-        {                                                                                   \
-            std::stringstream miopen_log_ss;                                                \
-            miopen_log_ss << miopen::PlatformName() << ": " << LoggingLevelToCString(level) \
-                          << " [" << miopen::LoggingParseFunction(                          \
-                                         __func__, __PRETTY_FUNCTION__) /* NOLINT */        \
-                          << "] " << __VA_ARGS__ << std::endl;                              \
-            std::cerr << miopen_log_ss.str();                                               \
-        }                                                                                   \
+#define MIOPEN_LOG(level, ...)                                                               \
+    do                                                                                       \
+    {                                                                                        \
+        if(miopen::IsLogging(level))                                                         \
+        {                                                                                    \
+            std::ostringstream miopen_log_ss;                                                \
+            miopen_log_ss << miopen::LoggingPrefix() << LoggingLevelToCString(level) << " [" \
+                          << miopen::LoggingParseFunction(__func__,            /* NOLINT */  \
+                                                          __PRETTY_FUNCTION__) /* NOLINT */  \
+                          << "] " << __VA_ARGS__ << std::endl;                               \
+            std::cerr << miopen_log_ss.str();                                                \
+        }                                                                                    \
     } while(false)
 
 #define MIOPEN_LOG_E(...) MIOPEN_LOG(miopen::LoggingLevel::Error, __VA_ARGS__)
 #define MIOPEN_LOG_W(...) MIOPEN_LOG(miopen::LoggingLevel::Warning, __VA_ARGS__)
 #define MIOPEN_LOG_I(...) MIOPEN_LOG(miopen::LoggingLevel::Info, __VA_ARGS__)
 #define MIOPEN_LOG_I2(...) MIOPEN_LOG(miopen::LoggingLevel::Info2, __VA_ARGS__)
+#define MIOPEN_LOG_T(...) MIOPEN_LOG(miopen::LoggingLevel::Trace, __VA_ARGS__)
+
+#define MIOPEN_LOG_DRIVER_CMD(...)                                                      \
+    do                                                                                  \
+    {                                                                                   \
+        std::ostringstream miopen_driver_cmd_ss;                                        \
+        miopen_driver_cmd_ss << miopen::LoggingPrefix() << "Command"                    \
+                             << " [" << miopen::LoggingParseFunction(                   \
+                                            __func__, __PRETTY_FUNCTION__) /* NOLINT */ \
+                             << "] ./bin/MIOpenDriver " << __VA_ARGS__ << std::endl;    \
+        std::cerr << miopen_driver_cmd_ss.str();                                        \
+    } while(false)
 
 } // namespace miopen
 
