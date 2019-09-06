@@ -3,8 +3,6 @@
 
 #include <string>
 
-MIOPEN_DECLARE_ENV_VAR(HOME)
-
 namespace miopen {
 
 std::string ExpandUser(std::string p)
