@@ -53,12 +53,13 @@ std::string PrepareUserDbPath()
     auto p = GetStringEnv(MIOPEN_USER_DB_PATH{});
 
 #if defined(RIF_BUILD)
+    std::string dir;
     if(p == nullptr)
     {
 #if defined(WIN32)
-        std::string dir = GetStringEnv(LOCALAPPDATA{});
+        dir = GetStringEnv(LOCALAPPDATA{});
 #else
-        std::string dir = GetStringEnv(HOME{});
+        dir = GetStringEnv(HOME{});
 #endif
         dir += "/miopen/kernels";
         p=dir.c_str();
