@@ -179,29 +179,40 @@ set( MIOPEN_BACKEND ${MIOPEN_DEFAULT_BACKEND} CACHE STRING
 set_property( CACHE MIOPEN_BACKEND PROPERTY STRINGS
     OpenCL HIP HIPOC )
 
+if(NOT WIN32 AND NOT APPLE AND NOT RIF_BUILD)
+    find_package(hip REQUIRED PATHS /opt/rocm)
+    target_flags(HIP_COMPILER_FLAGS hip::device)
+
+    message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+
+    add_definitions("-DHIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}")
+endif()
+
 # OpenCL 1.2
 if( MIOPEN_BACKEND STREQUAL "OpenCL")
     set(MIOPEN_BACKEND_OPENCL 1)
     find_package( OpenCL REQUIRED )
-    find_program(MIOPEN_HIP_COMPILER hcc
-            PATH_SUFFIXES bin
-            PATHS 
-	        /opt/rocm
-    )
-    set(MIOPEN_USE_MIOPENGEMM ON CACHE BOOL "")
-    if(MIOPEN_HIP_COMPILER)
-        message("hip compiler: ${MIOPEN_HIP_COMPILER}")
-    else()
-        find_program(MIOPEN_HIP_COMPILER clang++
-            PATH_SUFFIXES bin
-	        PATHS 
-		    /opt/rocm/llvm
-		    ${CMAKE_INSTALL_PREFIX}/llvm
+    if(NOT WIN32 AND NOT APPLE AND NOT RIF_BUILD)
+        find_program(MIOPEN_HIP_COMPILER hcc
+                PATH_SUFFIXES bin
+                PATHS 
+	            /opt/rocm
         )
+        set(MIOPEN_USE_MIOPENGEMM ON CACHE BOOL "")
         if(MIOPEN_HIP_COMPILER)
             message("hip compiler: ${MIOPEN_HIP_COMPILER}")
         else()
-            message(FATAL_ERROR "hip compiler not found")
+            find_program(MIOPEN_HIP_COMPILER clang++
+                PATH_SUFFIXES bin
+	            PATHS 
+                /opt/rocm/llvm
+                ${CMAKE_INSTALL_PREFIX}/llvm
+            )
+            if(MIOPEN_HIP_COMPILER)
+                message("hip compiler: ${MIOPEN_HIP_COMPILER}")
+            else()
+                message(FATAL_ERROR "hip compiler not found")
+            endif()
         endif()
     endif()
 
@@ -367,8 +378,7 @@ else()
 endif()
 
 # miopengemm
-<<<<<<< HEAD
-if(MIOPEN_USE_MIOPENGEMM)
+if(MIOPEN_USE_MIOPENGEMM AND NOT MSVC_IDE AND NOT RIF_BUILD)
     find_package(miopengemm PATHS /opt/rocm)
     if(miopengemm_FOUND)
         message(STATUS "Build with miopengemm")
@@ -377,15 +387,6 @@ if(MIOPEN_USE_MIOPENGEMM)
         message(STATUS "Build without miopengemm")
         set(MIOPEN_USE_MIOPENGEMM 0)
     endif()
-=======
-if(NOT MSVC_IDE AND NOT RIF_BUILD)
-    find_package(miopengemm PATHS /opt/rocm)
-endif()
-
-if(miopengemm_FOUND)
-    message(STATUS "Build with miopengemm")
-    set(MIOPEN_USE_MIOPENGEMM 1)
->>>>>>> 652cf889c... Linux fic + formatting
 else()
     message(STATUS "Build without miopengemm")
     set(MIOPEN_USE_MIOPENGEMM 0)
