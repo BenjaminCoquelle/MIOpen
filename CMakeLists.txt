@@ -134,25 +134,25 @@ set( MIOPEN_BACKEND ${MIOPEN_DEFAULT_BACKEND} CACHE STRING
 set_property( CACHE MIOPEN_BACKEND PROPERTY STRINGS
     OpenCL HIP HIPOC )
 
-if(NOT WIN32 AND NOT APPLE)
+if(NOT WIN32 AND NOT APPLE AND NOT RIF_BUILD)
     find_package(hip REQUIRED PATHS /opt/rocm)
     target_flags(HIP_COMPILER_FLAGS hip::device)
+
+    message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+
+    add_definitions("-DHIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}")
 endif()
-
-message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
-
-add_definitions("-DHIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}")
 
 # OpenCL 1.2
 if( MIOPEN_BACKEND STREQUAL "OpenCL")
     set(MIOPEN_BACKEND_OPENCL 1)
     find_package( OpenCL REQUIRED )
-    if(NOT WIN32 AND NOT APPLE)
+    if(NOT WIN32 AND NOT APPLE AND NOT RIF_BUILD)
         find_program(MIOPEN_HIP_COMPILER hcc
             PATH_SUFFIXES bin
             PATHS /opt/rocm
         )
-    
+
         if(MIOPEN_HIP_COMPILER)
             message("hip compiler: ${MIOPEN_HIP_COMPILER}")
         else()
