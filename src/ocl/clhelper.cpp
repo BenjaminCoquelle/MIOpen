@@ -185,6 +185,7 @@ ClProgramPtr LoadProgram(cl_context ctx,
 #if MIOPEN_BUILD_DEV
         params += " -Werror";
 #ifdef __linux__
+#if MIOPEN_BACKEND_HIP
         params += HipKernelWarningsString();
 #endif
 #endif
@@ -193,6 +194,9 @@ ClProgramPtr LoadProgram(cl_context ctx,
         std::string buf;
         bin_file_to_str(hsaco_file, buf);
         return LoadBinaryProgram(ctx, device, buf);
+#else
+        MIOPEN_THROW(miopenStatusNotImplemented, "Error Building .cpp Program\nHIP not supported");
+#endif
     }
     else // OpenCL programs.
     {

@@ -461,7 +461,6 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         ocl/dropoutocl.cpp
         ocl/gcn_asm_utils.cpp
         ocl/rnn_util_ocl.cpp
-        hip/hip_build_utils.cpp
         pooling.cpp
         ocl/fusionopconvocl.cpp
         ocl/fusionopbiasbnactivocl.cpp
