@@ -329,13 +329,18 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         ocl/utilocl.cpp
         ocl/ctcocl.cpp
         ocl/gcn_asm_utils.cpp
-        hip/hip_build_utils.cpp
         pooling.cpp
         ocl/fusionopconvocl.cpp
         ocl/fusionopbiasbnactivocl.cpp
         ${PROJECT_BINARY_DIR}/db_path.cpp
         ${PROJECT_BINARY_DIR}/kernel.cpp
         ${PROJECT_BINARY_DIR}/kernel_includes.cpp
+        )
+endif()
+
+if(MIOPEN_BACKEND STREQUAL "HIP")
+    list(APPEND MIOpen_Source
+        hip/hip_build_utils.cpp
         )
 endif()
 
