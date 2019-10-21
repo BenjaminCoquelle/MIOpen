@@ -170,6 +170,7 @@ ClProgramPtr LoadProgram(cl_context ctx,
     }
     else if(!is_kernel_str && miopen::EndsWith(program_name, ".cpp"))
     {
+#if MIOPEN_BACKEND_HIP
         std::string device_name = miopen::GetDeviceInfo<CL_DEVICE_NAME>(device);
         ParseDevName(device_name);
         boost::optional<miopen::TmpDir> dir(program_name);
@@ -184,6 +185,9 @@ ClProgramPtr LoadProgram(cl_context ctx,
         std::string buf;
         bin_file_to_str(hsaco_file, buf);
         return LoadBinaryProgram(ctx, device, buf);
+#else
+        MIOPEN_THROW(miopenStatusNotImplemented, "Error Building .cpp Program\nHIP not supported");
+#endif
     }
     else
     {
