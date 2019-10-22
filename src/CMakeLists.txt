@@ -45,9 +45,6 @@ configure_file( "${PROJECT_SOURCE_DIR}/include/miopen/version.h.in" "${PROJECT_B
 message( STATUS "MIOpen_VERSION= ${MIOpen_VERSION}" )
 message( STATUS "CMAKE_BUILD_TYPE= ${CMAKE_BUILD_TYPE}" )
 
-# This is incremented when the ABI to the library changes
-set( MIOpen_SOVERSION 1 )
-
 function(add_kernels KERNEL_FILES)
     set(INIT_KERNELS_LIST)
     foreach(KERNEL_FILE ${KERNEL_FILES})
@@ -406,7 +403,8 @@ add_library( MIOpen
     ${MIOpen_Source}
     )
 
-set_target_properties(MIOpen PROPERTIES SOVERSION 1)
+set_target_properties(MIOpen PROPERTIES VERSION ${MIOpen_VERSION_MAJOR}.${MIOpen_VERSION_MINOR}.${MIOpen_VERSION_PATCH})
+set_target_properties(MIOpen PROPERTIES SOVERSION ${MIOpen_VERSION_MAJOR})
 
 clang_tidy_check(MIOpen)
 
