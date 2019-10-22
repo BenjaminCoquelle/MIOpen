@@ -46,10 +46,6 @@ configure_file( "${PROJECT_SOURCE_DIR}/include/miopen/version.h.in" "${PROJECT_B
 message( STATUS "MIOpen_VERSION= ${MIOpen_VERSION}" )
 message( STATUS "CMAKE_BUILD_TYPE= ${CMAKE_BUILD_TYPE}" )
 
-# This is incremented when the ABI to the library changes
-set( MIOpen_SOVERSION 1.0 )
-
-
 function(add_kernels KERNEL_FILES)
     set(INIT_KERNELS_LIST)
     foreach(KERNEL_FILE ${KERNEL_FILES})
@@ -537,7 +533,12 @@ add_library( MIOpen
     $<TARGET_OBJECTS:sqlite_memvfs>
     )
 
+<<<<<<< HEAD
 rocm_set_soversion(MIOpen ${MIOpen_SOVERSION})
+=======
+set_target_properties(MIOpen PROPERTIES VERSION ${MIOpen_VERSION_MAJOR}.${MIOpen_VERSION_MINOR}.${MIOpen_VERSION_PATCH})
+set_target_properties(MIOpen PROPERTIES SOVERSION ${MIOpen_VERSION_MAJOR})
+>>>>>>> fdbc0b9f7... Update soname
 
 clang_tidy_check(MIOpen)
 
