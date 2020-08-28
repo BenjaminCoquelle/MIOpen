@@ -240,7 +240,7 @@ bool PlainTextDb::FlushUnsafe(const DbRecord& record, const RecordPositions* pos
     if(pos->begin < 0 || pos->end < 0)
     {
         {
-            std::ofstream file(filename, std::ios::app);
+            std::ofstream file(filename, std::ios::app | std::ios::binary);
 
             if(!file)
             {
