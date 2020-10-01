@@ -689,7 +689,7 @@ void FusionMDGraph::InitConv(FusionMDGraph& g)
     }
 
     // first path (asm kernel)
-    if(!miopen::IsDisabled(MIOPEN_DEBUG_GCN_ASM_KERNELS{}))
+    if(miopen::IsEnabled(MIOPEN_DEBUG_GCN_ASM_KERNELS{}))
     { // Conv -> Bias -> Activ // Conv -> Activ
         // single precision
         {

@@ -127,7 +127,8 @@ void DbRecord::WriteContents(std::ostream& stream) const
         return sum.empty() ? pair_str : sum + ';' + pair_str;
     };
 
-    stream << std::accumulate(map.begin(), map.end(), std::string(), pairsJoiner) << std::endl;
+    stream << std::accumulate(map.begin(), map.end(), std::string(), pairsJoiner) << "\n"
+           << std::flush;
 }
 
 void DbRecord::Merge(const DbRecord& that)
