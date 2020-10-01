@@ -303,7 +303,7 @@ void miopen::ConvolutionContext::DetectRocm()
     if(mloIsAmdRocmOpencl(*this))
     {
         use_asm_kernels =
-            !miopen::IsDisabled(MIOPEN_DEBUG_GCN_ASM_KERNELS{}) && ValidateGcnAssembler();
+            miopen::IsEnabled(MIOPEN_DEBUG_GCN_ASM_KERNELS{}) && ValidateGcnAssembler();
 #ifndef HIP_OC_FINALIZER
         use_binaries = !miopen::IsDisabled(MIOPEN_DEBUG_AMD_ROCM_PRECOMPILED_BINARIES{});
 #endif
