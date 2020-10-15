@@ -80,15 +80,14 @@ bool DbRecord::EraseValues(const std::string& id)
     return false;
 }
 
-bool DbRecord::ParseContents(const std::string& contents)
+bool DbRecord::ParseContents(std::istream& contents)
 {
-    std::istringstream ss(contents);
     std::string id_and_values;
     int found = 0;
 
     map.clear();
 
-    while(std::getline(ss, id_and_values, ';'))
+    while(std::getline(contents, id_and_values, ';'))
     {
         const auto id_size = id_and_values.find(':');
 
@@ -128,7 +127,8 @@ void DbRecord::WriteContents(std::ostream& stream) const
         return sum.empty() ? pair_str : sum + ';' + pair_str;
     };
 
-    stream << std::accumulate(map.begin(), map.end(), std::string(), pairsJoiner) << std::endl;
+    stream << std::accumulate(map.begin(), map.end(), std::string(), pairsJoiner) << "\n"
+           << std::flush;
 }
 
 void DbRecord::Merge(const DbRecord& that)

@@ -23,11 +23,19 @@
 # SOFTWARE.
 #
 ################################################################################
-cmake_minimum_required( VERSION 2.8.12 )
 
 cmake_policy(SET CMP0057 NEW)
 
 include (GenerateExportHeader)
+
+# Truncation rounding or (default) rounding to nearest even (RNE) is enabled.
+# This switch controls two related but different aspects of MIOpen behavior
+# 1.  How host code performs conversions of float to bfloat16, important only
+#     for testing.
+# 2.  How BF16 kernels (which are kind of mixed-precision now and expected to
+#     remain in the future)  perform final conversion (and rounding) of FP32
+#     to BF16 results. This affects the main functionality of the library.
+option( MIOPEN_USE_RNE_BFLOAT16 "Sets rounding scheme for bfloat16 type" ON )
 
 configure_file("${PROJECT_SOURCE_DIR}/include/miopen/config.h.in" "${PROJECT_BINARY_DIR}/include/miopen/config.h")
 
@@ -36,9 +44,6 @@ configure_file( "${PROJECT_SOURCE_DIR}/include/miopen/version.h.in" "${PROJECT_B
 
 message( STATUS "MIOpen_VERSION= ${MIOpen_VERSION}" )
 message( STATUS "CMAKE_BUILD_TYPE= ${CMAKE_BUILD_TYPE}" )
-
-# This is incremented when the ABI to the library changes
-set( MIOpen_SOVERSION 1 )
 
 function(add_kernels KERNEL_FILES)
     set(INIT_KERNELS_LIST)
@@ -57,7 +62,26 @@ function(add_kernels KERNEL_FILES)
     configure_file(kernels/kernel.cpp.in ${PROJECT_BINARY_DIR}/kernel.cpp)
 endfunction()
 
+function(add_kernel_includes KERNEL_FILES)
+    set(INIT_KERNELS_LIST)
+    foreach(KERNEL_FILE ${KERNEL_FILES})
+        if("${CMAKE_VERSION}" VERSION_LESS 3.0)
+            configure_file(${KERNEL_FILE} ${KERNEL_FILE}.delete)
+        else()
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${KERNEL_FILE})
+        endif()
+        get_filename_component(BASE_NAME ${KERNEL_FILE} NAME_WE)
+        get_filename_component(FILE_NAME ${KERNEL_FILE} NAME)
+        string(TOUPPER "${BASE_NAME}" KEY_NAME)
+        string(MAKE_C_IDENTIFIER "${KEY_NAME}" VAR_NAME)
+        list(APPEND INIT_KERNELS_LIST "    { \"${FILE_NAME}\", std::string(reinterpret_cast<const char*>(${VAR_NAME}), ${VAR_NAME}_SIZE) }")
+    endforeach()
+    string(REPLACE ";" ",\n" INIT_KERNELS "${INIT_KERNELS_LIST}")
+    configure_file(kernels/kernel_includes.cpp.in ${PROJECT_BINARY_DIR}/kernel_includes.cpp)
+endfunction()
+
 set( MIOpen_Source
+    buffer_info.cpp
     check_numerics.cpp
     convolution.cpp
     convolution_api.cpp
@@ -70,7 +94,7 @@ set( MIOpen_Source
     op_args.cpp
     operator.cpp
     fused_api.cpp
-	load_file.cpp
+    load_file.cpp
     pooling_api.cpp
     kernel_warnings.cpp
     logger.cpp
@@ -83,9 +107,17 @@ set( MIOpen_Source
     batch_norm_api.cpp
     rnn.cpp
     rnn_api.cpp
+    ctc.cpp
+    ctc_api.cpp
     temp_file.cpp
     problem_description.cpp
+    kernel_build_params.cpp
+    find_db.cpp
+    conv_algo_name.cpp
+    readonlyramdb.cpp
+    include/miopen/buffer_info.hpp
     include/miopen/temp_file.hpp
+    include/miopen/bfloat16.hpp
     include/miopen/db.hpp
     include/miopen/db_record.hpp
     include/miopen/lock_file.hpp
@@ -111,10 +143,21 @@ set( MIOpen_Source
     include/miopen/activ.hpp
     include/miopen/softmax.hpp
     include/miopen/rnn.hpp
+    include/miopen/ctc.hpp
     include/miopen/md_graph.hpp
     include/miopen/fusion_ops.hpp
     include/miopen/fusion.hpp
     include/miopen/mdg_expr.hpp
+    include/miopen/resource.h
+    include/miopen/kernel_build_params.hpp
+    include/miopen/algorithm.hpp
+    include/miopen/finddb_kernel_cache_key.hpp
+    include/miopen/hip_build_utils.hpp
+    include/miopen/solver_id.hpp
+    include/miopen/any_solver.hpp
+    include/miopen/conv_solution.hpp
+    include/miopen/conv_algo_name.hpp
+    include/miopen/readonlyramdb.hpp
     md_graph.cpp
     mdg_expr.cpp
     tensor.cpp
@@ -122,12 +165,14 @@ set( MIOpen_Source
     solver.cpp
     solver/conv_asm_3x3u.cpp
     solver/conv_asm_1x1u.cpp
+    solver/conv_asm_1x1u_stride2.cpp
     solver/conv_asm_1x1u_bias_activ.cpp
     solver/conv_asm_5x10u2v2f1.cpp
     solver/conv_asm_5x10u2v2b1.cpp
     solver/conv_asm_7x7c3h224w224k64u2v2p3q3f1.cpp
     solver/conv_asm_dir_BwdWrW3x3.cpp
     solver/conv_asm_dir_BwdWrW1x1.cpp
+    solver/conv_multipass_wino3x3WrW.cpp
     solver/conv_bin_wino3x3U.cpp
     solver/conv_bin_winoRxS.cpp
     solver/conv_ocl_dir2D_bwdWrW_2.cpp
@@ -139,12 +184,18 @@ set( MIOpen_Source
     solver/conv_ocl_dir2Dfwd_exhaustive_search.cpp
     solver/conv_ocl_dir2Dfwd.cpp
     solver/conv_ocl_dir2Dfwd1x1.cpp
+    solver/conv_hip_implicit_gemm_v4_fwd.cpp
+    solver/conv_hip_implicit_gemm_v4_1x1.cpp
     )
 
 list(APPEND MIOpen_Source tmp_dir.cpp binary_cache.cpp md5.cpp)
 
 if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
+    file(GLOB_RECURSE COMPOSABLE_KERNEL_INCLUDE "kernels/composable_kernel/include/*/*.hpp")
+    file(GLOB_RECURSE COMPOSABLE_KERNEL_SOURCE "kernels/composable_kernel/src/*/*.cpp")
+
     set(MIOPEN_KERNEL_INCLUDES
+        ${COMPOSABLE_KERNEL_INCLUDE}
         kernels/Conv_Winograd_v13_3_12_fp16dot_stride1.inc
         kernels/Conv_Winograd_v13_3_12_fp16dot_stride2_dec.inc
         kernels/Conv_Winograd_v13_3_12_fp16dot_stride2_dil.inc
@@ -153,12 +204,18 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         kernels/Conv_Winograd_v14_3_3_fp16dot_stride2_dil.inc
         kernels/Conv_Winograd_v13_3_12_epilogue.inc
         kernels/Conv_Winograd_v13_3_12_prologue.inc
+        kernels/Conv_Winograd_v16_3_0_epilogue.inc
+        kernels/Conv_Winograd_v16_3_0_prologue.inc
+        kernels/Conv_Winograd_v16_3_0_stride1.inc
         kernels/inst_wrappers.inc
         kernels/common.inc
+        kernels/xform_data_filter.inc
+        kernels/neuron.inc
         kernels/conv_sizes.inc
         kernels/gpr_alloc.inc)
 
     set(MIOPEN_KERNELS
+        ${COMPOSABLE_KERNEL_SOURCE}
         kernels/MIOpenCheckNumerics.cl
         kernels/MIOpenBatchNormActivBwdPerAct.cl
         kernels/MIOpenBatchNormActivBwdSpatial.cl
@@ -183,10 +240,13 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         kernels/MIOpenConv1x1J1_stride.cl
         kernels/MIOpenSoftmax.cl
         kernels/MIOpenConvD3x3.cl
-        kernels/MIOpenUtilKernels.cl
-        kernels/MIOpenUtilKernels2.cl
         kernels/MIOpenUtilKernels3.cl
         kernels/MIOpenUtilKernels4.cl
+        kernels/MIOpenUtilKernels5.cl
+        kernels/MIOpenIm2d2Col.cl
+        kernels/MIOpenIm3d2Col.cl
+        kernels/MIOpenCol2Im2d.cl
+        kernels/MIOpenCol2Im3d.cl
         kernels/MIOpenConvBwdWrWS2.cl
         kernels/MIOpenGroupConvBwdWrWS2.cl
         kernels/MIOpenConvBwdWrW_LxG_P53.cl
@@ -195,17 +255,20 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         kernels/MIOpenConvBwdWrW1x1_PAD_read4.cl
         kernels/MIOpenConvFwd_LxL_11.cl
         kernels/MIOpenConvFFT.cl
-        kernels/MIOpenGroupConvDirUni.cl
         kernels/bugzilla_34765_detect.s
         kernels/dummy_kernel.s
         kernels/conv3x3.s
         kernels/conv1x1u.s
+        kernels/conv1x1u_stride2.s
         kernels/conv1x1u_bias_activ.s
         kernels/conv3x3wrw.s
         kernels/conv1x1wrw.s
         kernels/conv5x10u2v2f1.s
         kernels/conv5x10u2v2b1.s
         kernels/conv7x7c3h224w224k64u2v2p3q3f1.s
+        kernels/gcnAsmBNFwdTrainSpatial.s
+        kernels/xform_out.s
+        kernels/gcnAsmBNBwdTrainSpatial.s
         kernels/MIOpenTensorKernels.cl
         kernels/MIOpenSubTensorOpWithScalarKernel.cl
         kernels/MIOpenSubTensorOpWithSubTensorKernel.cl
@@ -216,18 +279,13 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         kernels/Conv_Winograd_v14_3_3_fp16dot_stride1.s
         kernels/Conv_Winograd_v14_3_3_fp16dot_stride2_dec.s
         kernels/Conv_Winograd_v14_3_3_fp16dot_stride2_dil.s
+        kernels/Conv_Winograd_v16_3_0_stride1.s
         kernels/conv_3x3_wheel_alpha_v9_2_7_gfx803_md10.so
         kernels/conv_3x3_wheel_alpha_v9_2_7_gfx900_md10.so
         kernels/conv_3x3_wheel_alpha_v9_2_7_gfx906_md10.so
         kernels/conv_3x3_wheel_alpha_v9_2_7_stride_2_dec_gfx803_md10.so
         kernels/conv_3x3_wheel_alpha_v9_2_7_stride_2_dec_gfx900_md10.so
         kernels/conv_3x3_wheel_alpha_v9_2_7_stride_2_dec_gfx906_md10.so
-        kernels/conv_3x3_wheel_alpha_v9_0_15_gfx803_m30.so
-        kernels/conv_3x3_wheel_alpha_v9_0_15_stride_2_dil_gfx803_m30.so
-        kernels/conv_3x3_wheel_alpha_v9_0_15_stride_2_dec_gfx803_m30.so
-        kernels/conv_3x3_wheel_alpha_v9_0_15_gfx900_m30.so
-        kernels/conv_3x3_wheel_alpha_v9_0_15_stride_2_dil_gfx900_m30.so
-        kernels/conv_3x3_wheel_alpha_v9_0_15_stride_2_dec_gfx900_m30.so
         kernels/conv_3x3_wheel_alpha_v9_0_15_gfx803_md10.so
         kernels/conv_3x3_wheel_alpha_v9_0_15_stride_2_dil_gfx803_md10.so
         kernels/conv_3x3_wheel_alpha_v9_0_15_stride_2_dec_gfx803_md10.so
@@ -239,15 +297,14 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         kernels/conv_3x3_wheel_alpha_v9_0_15_stride_2_dec_gfx906_md10.so
         kernels/conv_3x3_wheel_alpha_v7_0_3b_gfx900_md10.so
         kernels/conv_3x3_wheel_alpha_v7_0_3b_gfx906_md10.so
-        kernels/conv_3x3_wheel_alpha_v7_0_3b_gfx900.so
         kernels/conv_3x3_wheel_alpha_v3_0b_gfx803_md10.so
-        kernels/conv_3x3_wheel_alpha_v3_0b_gfx803_m30.so
-        kernels/conv_3x3_wheel_alpha_v3_0b_gfx803_m21.so
-        kernels/conv_3x3_wheel_alpha_v3_0b_gfx803_m10.so
         kernels/MIOpenConvBwdBias.cl
-        kernels/MIOpenBatchNormActivInfer.cl)
-
+        kernels/MIOpenBatchNormActivInfer.cl
+        kernels/MIOpenCTCLoss.cl
+        kernels/xform_data.s
+        kernels/xform_filter.s)
     add_kernels("${MIOPEN_KERNELS}")
+    add_kernel_includes("${MIOPEN_KERNEL_INCLUDES}")
     configure_file(db_path.cpp.in ${PROJECT_BINARY_DIR}/db_path.cpp)
     list(APPEND MIOpen_Source
         activ.cpp
@@ -267,21 +324,27 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         ocl/softmaxocl.cpp
         ocl/rnnocl.cpp
         ocl/utilocl.cpp
+        ocl/ctcocl.cpp
         ocl/gcn_asm_utils.cpp
         pooling.cpp
         ocl/fusionopconvocl.cpp
         ocl/fusionopbiasbnactivocl.cpp
         ${PROJECT_BINARY_DIR}/db_path.cpp
         ${PROJECT_BINARY_DIR}/kernel.cpp
+        ${PROJECT_BINARY_DIR}/kernel_includes.cpp
         )
 endif()
 
-if(miopengemm_FOUND)
+if(MIOPEN_BACKEND STREQUAL "HIP")
     list(APPEND MIOpen_Source
-        gemm.cpp
+        hip/hip_build_utils.cpp
+        )
+endif()
+
+if(miopengemm_FOUND OR MIOPEN_USE_ROCBLAS)
+    list(APPEND MIOpen_Source
         gemm_v2.cpp
         miopengemm.cpp
-        gemm_geometry.cpp
     )
 endif()
 
@@ -303,9 +366,14 @@ if( MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
         )
 endif()
 
+if(WIN32)
+    list(APPEND MIOpen_Source
+        include/miopen/MIOpen.rc
+        )
+endif()
+
 if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
     list(APPEND MIOpen_Source ${PROJECT_BINARY_DIR}/include/miopen_kernels.h)
-
     add_custom_command(
         OUTPUT ${PROJECT_BINARY_DIR}/include/miopen_kernels.h
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -314,8 +382,17 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         COMMENT "Inlining MIOpen kernels"
         )
 
+    list(APPEND MIOpen_Source ${PROJECT_BINARY_DIR}/include/miopen_kernel_includes.h)
+    add_custom_command(
+        OUTPUT ${PROJECT_BINARY_DIR}/include/miopen_kernel_includes.h
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        DEPENDS addkernels ${MIOPEN_KERNEL_INCLUDES}
+        COMMAND ${WINE_CMD} $<TARGET_FILE:addkernels> -no-recurse -guard GUARD_MIOPEN_KERNEL_INCLUDES_HPP_ -target ${PROJECT_BINARY_DIR}/include/miopen_kernel_includes.h -source ${MIOPEN_KERNEL_INCLUDES}
+        COMMENT "Inlining MIOpen HIP kernel includes"
+        )
+
     add_custom_target(miopen_tidy_inlining
-        DEPENDS ${PROJECT_BINARY_DIR}/include/miopen_kernels.h
+        DEPENDS ${PROJECT_BINARY_DIR}/include/miopen_kernels.h ${PROJECT_BINARY_DIR}/include/miopen_kernel_includes.h
         )
 
     add_dependencies(tidy miopen_tidy_inlining)
@@ -326,7 +403,8 @@ add_library( MIOpen
     ${MIOpen_Source}
     )
 
-set_target_properties(MIOpen PROPERTIES SOVERSION 1)
+set_target_properties(MIOpen PROPERTIES VERSION ${MIOpen_VERSION_MAJOR}.${MIOpen_VERSION_MINOR}.${MIOpen_VERSION_PATCH})
+set_target_properties(MIOpen PROPERTIES SOVERSION ${MIOpen_VERSION_MAJOR})
 
 clang_tidy_check(MIOpen)
 
@@ -361,18 +439,16 @@ if( MIOPEN_BACKEND STREQUAL "OpenCL")
     target_include_directories(MIOpen SYSTEM PUBLIC ${OPENCL_INCLUDE_DIRS} )
     target_link_libraries( MIOpen PUBLIC ${OPENCL_LIBRARIES} )
     list(APPEND PACKAGE_DEPENDS PACKAGE OpenCL)
-    set(BACKEND_PACKAGE "OpenCL")
 elseif(MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_BACKEND STREQUAL "HIP")
-    target_link_libraries( MIOpen PRIVATE hip::hip_hcc hip::device )
-    target_link_libraries( MIOpen INTERFACE hip::hip_hcc )
+    target_link_libraries( MIOpen PRIVATE hip::device )
+    target_link_libraries( MIOpen INTERFACE hip::host )
     if(ENABLE_HIP_WORKAROUNDS)
         # Workaround hip not setting its usage requirements correctly
         target_compile_definitions( MIOpen PRIVATE -D__HIP_PLATFORM_HCC__=1 )
     endif()
     # This is helpful for the tests
-    target_link_libraries( MIOpen INTERFACE $<BUILD_INTERFACE:${hip_LIBRARIES}> )
+    target_link_libraries( MIOpen INTERFACE $<BUILD_INTERFACE:hip::device> )
     list(APPEND PACKAGE_DEPENDS PACKAGE hip)
-    set(BACKEND_PACKAGE "hip")
 endif()
 
 ############################################################
@@ -394,7 +470,7 @@ if(WIN32 AND NOT MSVC)
     target_link_libraries(MIOpen PUBLIC -Wl,--whole-archive -lgcc -lstdc++-6 -Wl,--no-whole-archive -Wl,--allow-multiple-definition)
 endif()
 
-target_include_directories(MIOpen PUBLIC $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>)
+target_include_directories(MIOpen SYSTEM PUBLIC $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>)
 target_internal_library(MIOpen
     optimized ${Boost_FILESYSTEM_LIBRARY_RELEASE}
     optimized ${Boost_SYSTEM_LIBRARY_RELEASE}
@@ -406,18 +482,21 @@ if(NOT WIN32 AND NOT APPLE)
 MIOPEN_${MIOPEN_BACKEND}_1
 {
 global:
-    *;
+    miopen*;
+    extern \"C++\" {
+        miopen::*;
+    };
 local:
-    *;
+    *boost*;
+    extern \"C++\" {
+        std::*;
+    };
 };
 ")
     target_link_libraries(MIOpen PRIVATE "-Wl,--version-script=${CMAKE_CURRENT_BINARY_DIR}/lib.def")
-    if(NOT BUILD_DEV)
-        # set_target_properties(MIOpen PROPERTIES CXX_VISIBILITY_PRESET hidden)
-        if(NOT APPLE)
-            target_link_libraries(MIOpen PRIVATE "-Wl,--exclude-libs,ALL")
-        endif()
-    endif()
+    target_link_libraries(MIOpen PRIVATE "-Wl,--exclude-libs,ALL")
+    # set_target_properties(MIOpen PROPERTIES CXX_VISIBILITY_PRESET protected)
+    set_target_properties(MIOpen PROPERTIES VISIBILITY_INLINES_HIDDEN 1)
 endif()
 
 ############################################################
@@ -456,7 +535,18 @@ install(FILES
     kernels/gfx900_56.cd.pdb.txt
     kernels/gfx906_64.cd.pdb.txt
     kernels/gfx906_60.cd.pdb.txt
-    kernels/gfx906_56.cd.pdb.txt
+    kernels/gfx803_36.HIP.fdb.txt
+    kernels/gfx803_64.HIP.fdb.txt
+    kernels/gfx900_64.HIP.fdb.txt
+    kernels/gfx900_56.HIP.fdb.txt
+    kernels/gfx906_64.HIP.fdb.txt
+    kernels/gfx906_60.HIP.fdb.txt
+    kernels/gfx803_36.OpenCL.fdb.txt
+    kernels/gfx803_64.OpenCL.fdb.txt
+    kernels/gfx900_64.OpenCL.fdb.txt
+    kernels/gfx900_56.OpenCL.fdb.txt
+    kernels/gfx906_64.OpenCL.fdb.txt
+    kernels/gfx906_60.OpenCL.fdb.txt
  DESTINATION ${DATA_INSTALL_DIR}/db)
 
 rocm_install_symlink_subdir(${MIOPEN_INSTALL_DIR})

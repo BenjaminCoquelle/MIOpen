@@ -2,96 +2,127 @@
 
 #include <miopen/convolution.hpp>
 
-/***********************************************************************************************************
+#include <functional>
+#include <sstream>
+#include <tuple>
 
- * Internal implementation of the direct conv configuration search
+namespace miopen {
 
- ************************************************************************************************************/
-
-/*
-   the search db is a text file with the name defined by the device characteristics.
-   each line is a key/value pair, separated by a space:
-   32x16x16x3x3x64x16x16x100xNCHWxFP32x1 16.16.16.16.1.4.8.4.1
-   or
-   64x8x8x5x5x32x8x8x100xNCHWxFP32x0 16.16.8.8.2.4.1.1.4
-
-   key format (all values are separted by x):
-   n input maps
-   input height
-   input width
-   filter height
-   filter width
-   n output maps
-   output height
-   output width
-   batch size
-   tensors' layout
-   tensprs' data type
-   direction (1 - forward, 0 - backward)
-
-Note:
-for backward direction - input and output are reversed.
-
-value format (all values are separated by .):
-vertical group size
-horizontal group size
-input block vertical size
-input block horizontal size
-output tile vertical size
-output tile horizaontal size
-n of output tiles
-n of input blocks
-n batchs (stacks) processed by the group
-*/
-
-int miopen::ProblemDescription::mloBuildConf_Key(std::string& conf_key) const
+static std::string
+EncodeDataTypesForKey(miopenDataType_t in, miopenDataType_t weights, miopenDataType_t out)
 {
+    if(in == weights && in == out)
+        return GetDataTypeName(in);
+    return GetDataTypeName(in) + GetDataTypeName(weights) + GetDataTypeName(out);
+}
 
-    conf_key = std::to_string(static_cast<long long>(n_inputs)) + std::string("x") +
-               std::to_string(static_cast<long long>(in_height)) + std::string("x") +
-               std::to_string(static_cast<long long>(in_width)) + std::string("x") +
-               std::to_string(static_cast<long long>(kernel_size1)) + std::string("x") +
-               std::to_string(static_cast<long long>(kernel_size0)) + std::string("x") +
-               std::to_string(static_cast<long long>(n_outputs)) + std::string("x") +
-               std::to_string(static_cast<long long>(out_height)) + std::string("x") +
-               std::to_string(static_cast<long long>(out_width)) + std::string("x") +
-               std::to_string(static_cast<long long>(batch_sz)) + std::string("x") + in_layout +
-               std::string("x") + in_data_type + std::string("x") +
-               std::to_string(static_cast<long long>(pad1)) + std::string("x") +
-               std::to_string(static_cast<long long>(pad0)) + std::string("x") +
-               std::to_string(static_cast<long long>(kernel_stride0)) + std::string("x") +
-               std::to_string(static_cast<long long>(kernel_stride1)) + std::string("x") +
-               std::to_string(static_cast<long long>(kernel_dilation0)) + std::string("x") +
-               std::to_string(static_cast<long long>(kernel_dilation1)) + std::string("x") +
-               std::to_string(static_cast<long long>(group_counts)) + std::string("x") +
-               (mode.IsTranspose() ? "mT" : "") + (direction.IsForward() ? "1" : "0");
+std::function<void(std::ostream&)>
+PrintDHW(char sep, int spatial_dims, int depth, int height, int width)
+{
+    return [=](std::ostream& stream) {
+        if(spatial_dims > 2)
+            stream << depth << sep;
+        stream << height << sep << width;
+    };
+}
+
+std::ostream& operator<<(std::ostream& stream, std::function<void(std::ostream&)>&& manipulator)
+{
+    manipulator(stream);
+    return stream;
+}
+
+int ProblemDescription::mloBuildConf_Key(std::string& conf_key) const
+{
+    std::ostringstream ss;
+
+    ss << n_inputs;
+    ss << 'x' << PrintDHW('x', spatial_dims, in_depth, in_height, in_width);
+    ss << 'x' << PrintDHW('x', spatial_dims, kernel_size_d, kernel_size_h, kernel_size_w);
+    ss << 'x' << n_outputs;
+    ss << 'x' << PrintDHW('x', spatial_dims, out_depth, out_height, out_width);
+    ss << 'x' << batch_sz;
+    ss << 'x' << in_layout;
+    ss << 'x' << EncodeDataTypesForKey(in_data_type, weights_data_type, out_data_type);
+    ss << 'x' << PrintDHW('x', spatial_dims, pad_d, pad_h, pad_w);
+    ss << 'x' << PrintDHW('x', spatial_dims, kernel_stride_d, kernel_stride_h, kernel_stride_w);
+    ss << 'x'
+       << PrintDHW('x', spatial_dims, kernel_dilation_d, kernel_dilation_h, kernel_dilation_w);
+    ss << 'x' << group_counts;
+    ss << 'x' << (direction.IsForward() ? "1" : "0");
+
+    conf_key = ss.str();
+
     return (0);
 }
 
-miopen::ProblemDescription::ProblemDescription(const TensorDescriptor& in,
-                                               const TensorDescriptor& weights,
-                                               const TensorDescriptor& out,
-                                               const ConvolutionDescriptor& conv,
-                                               int dir,
-                                               int bias_)
+void ProblemDescription::Serialize(std::ostream& stream) const
+{
+    if(!direction.IsKnown())
+        MIOPEN_THROW("!direction.IsKnown()");
+    const auto sep = '-';
+    // 576-4-4-1x1-192-4-4-8-1x1-2x2-3x3-0-NCHW-FP32-F
+    // clang-format off
+    stream << n_inputs;
+    stream << sep << PrintDHW(sep, spatial_dims, in_depth, in_height, in_width);
+    stream << sep << PrintDHW('x', spatial_dims, kernel_size_d, kernel_size_h, kernel_size_w);
+    stream << sep << n_outputs;
+    stream << sep << PrintDHW(sep, spatial_dims, out_depth, out_height, out_width);
+    stream << sep << batch_sz;
+    stream << sep << PrintDHW('x', spatial_dims, pad_d, pad_h, pad_w);
+    stream << sep << PrintDHW('x', spatial_dims, kernel_stride_d, kernel_stride_h, kernel_stride_w);
+    stream << sep << PrintDHW('x', spatial_dims, kernel_dilation_d, kernel_dilation_h, kernel_dilation_w);
+    stream << sep << bias;
+    stream << sep << in_layout;
+    stream << sep << EncodeDataTypesForKey(in_data_type, weights_data_type, out_data_type);
+    stream << sep << (direction.IsForward() ? "F" : direction.IsBackwardData() ? "B" : "W");
+    // clang-format on
+    // New performance config entries shall come into variable/optional part of db key.
+    // This is to support backward compatibility with previous versions of databases.
+    std::ostringstream optional;
+    {
+        // Group count > 1 identifies Group/Depthwise modes.
+        if(group_counts != 1)
+            optional << 'g' << group_counts;
+    }
+    if(!optional.str().empty())
+    {
+        stream << '_' << optional.str();
+    }
+}
+
+ProblemDescription::ProblemDescription(const TensorDescriptor& in,
+                                       const TensorDescriptor& weights,
+                                       const TensorDescriptor& out,
+                                       const ConvolutionDescriptor& conv,
+                                       int dir,
+                                       int bias_)
     : bias(bias_)
 {
     direction.Set(dir);
 
-    SetDescFromMLDesc(*this, in, &ProblemDescription::setInputDescr);
-    SetDescFromMLDesc(*this, weights, &ProblemDescription::setWeightsDescr);
-    SetDescFromMLDesc(*this, out, &ProblemDescription::setOutputDescr);
     setConvDescr(conv);
+    SetDescFromMLDesc(spatial_dims, *this, in, &ProblemDescription::setInputDescr);
+    SetDescFromMLDesc(spatial_dims, *this, weights, &ProblemDescription::setWeightsDescr);
+    SetDescFromMLDesc(spatial_dims, *this, out, &ProblemDescription::setOutputDescr);
 }
 
-void miopen::ProblemDescription::setConvDescr(const ConvolutionDescriptor& conv)
+std::tuple<int, int, int> GetDHW(int spatial_dims, const std::vector<int>& data)
 {
-    pad1             = conv.pad_h;
-    pad0             = conv.pad_w;
-    kernel_stride0   = conv.u;
-    kernel_stride1   = conv.v;
-    kernel_dilation0 = conv.dilation_h;
-    kernel_dilation1 = conv.dilation_w;
-    group_counts     = conv.group_count;
-    mode.val         = conv.mode;
+    if(spatial_dims == 2)
+        return std::make_tuple(0, data[0], data[1]);
+    return std::make_tuple(data[0], data[1], data[2]);
 }
+
+void ProblemDescription::setConvDescr(const ConvolutionDescriptor& conv)
+{
+    spatial_dims = conv.spatialDim;
+    std::tie(pad_d, pad_h, pad_w) = GetDHW(spatial_dims, conv.GetConvPads());
+    std::tie(kernel_stride_d, kernel_stride_h, kernel_stride_w) =
+        GetDHW(spatial_dims, conv.GetConvStrides());
+    std::tie(kernel_dilation_d, kernel_dilation_h, kernel_dilation_w) =
+        GetDHW(spatial_dims, conv.GetConvDilations());
+    group_counts = conv.group_count;
+}
+
+} // namespace miopen

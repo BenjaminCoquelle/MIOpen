@@ -26,6 +26,7 @@
 #include <miopen/config.h>
 #include <miopen/device_name.hpp>
 #include <miopen/errors.hpp>
+#include <miopen/logger.hpp>
 #include <miopen/handle.hpp>
 #include <miopen/kernel_cache.hpp>
 #include <miopen/manage_ptr.hpp>
@@ -252,7 +253,6 @@ void default_deallocator(void*, void* mem) { clReleaseMemObject(DataCast(mem)); 
 
 struct HandleImpl
 {
-
     using AqPtr = miopen::manage_ptr<typename std::remove_pointer<miopenAcceleratorQueue_t>::type,
                                      decltype(&clReleaseCommandQueue),
                                      &clReleaseCommandQueue>;
@@ -260,8 +260,9 @@ struct HandleImpl
                                           decltype(&clReleaseContext),
                                           &clReleaseContext>;
 
-    ContextPtr context;
-    AqPtr queue;
+    ContextPtr context  = nullptr;
+    AqPtr queue         = nullptr;
+    cl_device_id device = nullptr; // NOLINT
     Allocator allocator{};
     KernelCache cache;
     bool enable_profiling  = false;
@@ -283,7 +284,7 @@ struct HandleImpl
             {
                 MIOPEN_THROW("clGetPlatformIDs failed.2");
             }
-            for(int i = 0; i < numPlatforms; ++i)
+            for(cl_uint i = 0; i < numPlatforms; ++i)
             {
                 char pbuf[100];
 
@@ -342,7 +343,7 @@ struct HandleImpl
             size_t st, end;
             clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_START, sizeof(size_t), &st, nullptr);
             clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_END, sizeof(size_t), &end, nullptr);
-            profiling_result = ((end - st) * 1e-6);
+            profiling_result = static_cast<float>(end - st) * 1.0e-6; // NOLINT
         }
     }
 };
@@ -396,19 +397,19 @@ Handle::Handle() : impl(new HandleImpl())
 
 #ifdef _WIN32
     // Just using the first device as default
-    auto device = devices.at(0);
+    impl->device = devices.at(0);
 #else
     // Pick device based on process id
     auto pid = ::getpid();
     assert(pid > 0);
-    auto device = devices.at(pid % devices.size());
+    impl->device = devices.at(pid % devices.size());
 #endif
 
-// TODO: Store device name in handle
-#ifndef NDEBUG
-    char deviceName[100];
-    clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(deviceName), deviceName, nullptr);
-    printf("Device Name: %s\n", deviceName);
+#if !MIOPEN_INSTALLABLE
+    // TODO: Store device name in handle
+    std::string deviceName = miopen::GetDeviceInfo<CL_DEVICE_NAME>(impl->device);
+    ParseDevName(deviceName);
+    MIOPEN_LOG_I("Device name: " << deviceName);
 #endif
 
     /////////////////////////////////////////////////////////////////
@@ -419,8 +420,8 @@ Handle::Handle() : impl(new HandleImpl())
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    impl->queue = HandleImpl::AqPtr{
-        clCreateCommandQueue(impl->context.get(), device, CL_QUEUE_PROFILING_ENABLE, &status)};
+    impl->queue = HandleImpl::AqPtr{clCreateCommandQueue(
+        impl->context.get(), impl->device, CL_QUEUE_PROFILING_ENABLE, &status)};
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
@@ -429,10 +430,10 @@ Handle::Handle() : impl(new HandleImpl())
         MIOPEN_THROW("Creating Command Queue. (clCreateCommandQueue)");
     }
     this->SetAllocator(nullptr, nullptr, nullptr);
+    MIOPEN_LOG_I(*this);
 }
 
-Handle::Handle(Handle&&) noexcept = default;
-Handle::~Handle()                 = default;
+Handle::~Handle() = default;
 
 void Handle::SetStream(miopenAcceleratorQueue_t streamID) const
 {
@@ -476,11 +477,22 @@ KernelInvoke Handle::AddKernel(const std::string& algorithm,
                                const std::vector<size_t>& vld,
                                const std::vector<size_t>& vgd,
                                const std::string& params,
-                               std::size_t cache_index)
+                               std::size_t cache_index,
+                               bool is_kernel_str,
+                               const std::string& kernel_src)
 {
 
-    auto obj = this->impl->cache.AddKernel(
-        *this, algorithm, network_config, program_name, kernel_name, vld, vgd, params, cache_index);
+    auto obj = this->impl->cache.AddKernel(*this,
+                                           algorithm,
+                                           network_config,
+                                           program_name,
+                                           kernel_name,
+                                           vld,
+                                           vgd,
+                                           params,
+                                           cache_index,
+                                           is_kernel_str,
+                                           kernel_src);
     return this->Run(obj);
 }
 
@@ -517,7 +529,10 @@ KernelInvoke Handle::Run(Kernel k)
     }
 }
 
-Program Handle::LoadProgram(const std::string& program_name, std::string params, bool is_kernel_str)
+Program Handle::LoadProgram(const std::string& program_name,
+                            std::string params,
+                            bool is_kernel_str,
+                            const std::string& kernel_src)
 {
     auto cache_file =
         miopen::LoadBinary(this->GetDeviceName(), program_name, params, is_kernel_str);
@@ -527,7 +542,8 @@ Program Handle::LoadProgram(const std::string& program_name, std::string params,
                                      miopen::GetDevice(this->GetStream()),
                                      program_name,
                                      params,
-                                     is_kernel_str);
+                                     is_kernel_str,
+                                     kernel_src);
 
         // Save to cache
         auto path = miopen::GetCachePath() / boost::filesystem::unique_path();
@@ -539,9 +555,11 @@ Program Handle::LoadProgram(const std::string& program_name, std::string params,
     }
     else
     {
+        std::vector<char> BinProgram;
+        miopen::LoadBinaryFile(cache_file, BinProgram);
         return LoadBinaryProgram(miopen::GetContext(this->GetStream()),
                                  miopen::GetDevice(this->GetStream()),
-                                 miopen::LoadFile(cache_file));
+                                 BinProgram);
     }
 }
 
@@ -556,10 +574,22 @@ std::size_t Handle::GetLocalMemorySize()
     return miopen::GetDeviceInfo<CL_DEVICE_LOCAL_MEM_SIZE>(miopen::GetDevice(this->GetStream()));
 }
 
+std::size_t Handle::GetGlobalMemorySize()
+{
+    return miopen::GetDeviceInfo<CL_DEVICE_GLOBAL_MEM_SIZE>(miopen::GetDevice(this->GetStream()));
+}
+
 std::string Handle::GetDeviceName()
 {
     std::string name = miopen::GetDeviceInfo<CL_DEVICE_NAME>(miopen::GetDevice(this->GetStream()));
+    ParseDevName(name);
     return GetDeviceNameFromMap(name);
+}
+
+std::ostream& Handle::Print(std::ostream& os) const
+{
+    os << "stream: " << this->impl->queue.get() << ", device_id: " << this->impl->device;
+    return os;
 }
 
 std::size_t Handle::GetMaxMemoryAllocSize()

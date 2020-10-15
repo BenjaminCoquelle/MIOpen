@@ -34,6 +34,10 @@
 #include <cstdlib>
 #include "tensor_holder.hpp"
 
+#ifdef _WIN32
+typedef unsigned int uint;
+#endif
+
 // loop over sub-tensor, and operate on each data
 template <typename T, template <typename> class data_operator_t>
 void operate_over_subtensor(const data_operator_t<T>& r_data_operator,
@@ -53,8 +57,8 @@ void operate_over_subtensor_impl(const data_operator_t<T>& r_data_operator,
                                  const uint current_dim,
                                  const int offset)
 {
-    const int max_dim        = rSubDesc.GetLengths().size() - 1;
-    const int current_stride = rSubDesc.GetStrides()[current_dim];
+    auto max_dim        = static_cast<int>(rSubDesc.GetLengths().size() - 1);
+    auto current_stride = static_cast<int>(rSubDesc.GetStrides()[current_dim]);
 
     int index = offset;
 

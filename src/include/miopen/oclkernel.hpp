@@ -62,11 +62,12 @@ struct OCLSetKernelArg
     template <class I, class T>
     void operator()(cl_kernel kernel, I i, const T& x) const
     {
-        cl_int status = clSetKernelArg(kernel, i, sizeof(T), reinterpret_cast<const void*>(&x));
+        cl_int status =
+            clSetKernelArg(kernel, i, sizeof(T), reinterpret_cast<const void*>(&x)); // NOLINT
         if(status != CL_SUCCESS)
         {
             MIOPEN_THROW("Error setting argument #" + std::to_string(i) + " to kernel (size = " +
-                         std::to_string(sizeof(T)) + "): " + OpenCLErrorMessage(status));
+                         std::to_string(sizeof(T)) + "): " + OpenCLErrorMessage(status)); // NOLINT
         }
     }
 
@@ -134,6 +135,11 @@ class OCLKernel
     {
         assert(ldims.size() == gdims.size());
         assert(!ldims.empty() && ldims.size() <= 3);
+
+        for(int i = 0; i < gdims.size(); ++i)
+        {
+            gdims[i] = (gdims[i] + ldims[i] - 1) / ldims[i] * ldims[i];
+        }
     }
 
     OCLKernel(SharedProgramPtr p,
@@ -151,6 +157,14 @@ class OCLKernel
            256) // FIXME: get ldims limit from runtime
         {
             std::fill(ldims.begin(), ldims.end(), 0);
+        }
+        else
+        {
+            assert(ldims.size() == gdims.size());
+            for(int i = 0; i < gdims.size(); ++i)
+            {
+                gdims[i] = (gdims[i] + ldims[i] - 1) / ldims[i] * ldims[i];
+            }
         }
     }
 

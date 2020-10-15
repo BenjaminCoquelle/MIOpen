@@ -26,7 +26,7 @@
 find_path(OPENCL_INCLUDE_DIRS
     NAMES OpenCL/cl.h CL/cl.h
     HINTS
-    ${OPENCL_ROOT}/include
+    $ENV{OCL_ROOT}/include
     $ENV{AMDAPPSDKROOT}/include
     $ENV{CUDA_PATH}/include
     PATHS
@@ -44,6 +44,7 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
         NAMES OpenCL
         HINTS
         ${OPENCL_ROOT}/lib
+		$ENV{OCL_ROOT}/lib		
         $ENV{AMDAPPSDKROOT}/lib
         $ENV{CUDA_PATH}/lib
         DOC "OpenCL dynamic library path"

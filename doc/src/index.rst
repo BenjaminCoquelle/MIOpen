@@ -7,6 +7,8 @@ Welcome to MIOpen
 =================
 **Advanced Micro Devices, Inc's open source deep learning library.**
 
+Sources and binaries can be found at `MIOpen's GitHub site <https://github.com/ROCmSoftwarePlatform/MIOpen>`_.
+
 .. toctree::
     :maxdepth: 4
     :caption: Contents:
@@ -17,6 +19,8 @@ Welcome to MIOpen
     DebugAndLogging
     cache
     perfdatabase
+    finddb
+    find_and_immediate
     Getting_Started_FusionAPI
     apireference
 

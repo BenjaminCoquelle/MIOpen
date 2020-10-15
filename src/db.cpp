@@ -45,7 +45,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <string>
-#include "include/miopen/db.hpp"
+#include <vector>
 
 namespace miopen {
 
@@ -72,8 +72,7 @@ std::string LockFilePath(const boost::filesystem::path& filename_)
 
 Db::Db(const std::string& filename_, bool is_system)
     : filename(filename_),
-      lock_file(LockFile::Get(LockFilePath(filename_).c_str())),
-      warn_if_unreadable(is_system)
+      lock_file(LockFile::Get(LockFilePath(filename_).c_str()))
 {
     if(!is_system)
     {
@@ -151,17 +150,13 @@ boost::optional<DbRecord> Db::FindRecordUnsafe(const std::string& key, RecordPos
         pos->end   = -1;
     }
 
-    MIOPEN_LOG_I2("Looking for key: " << key);
+    MIOPEN_LOG_I2("Looking for key " << key << " in file " << filename);
 
     std::ifstream file(filename);
 
     if(!file)
     {
-        if(warn_if_unreadable)
-            MIOPEN_LOG_W("File is unreadable: " << filename);
-        else
-            MIOPEN_LOG_I("File is unreadable: " << filename);
-
+        MIOPEN_LOG_I("File is unreadable: " << filename);
         return boost::none;
     }
 
@@ -228,16 +223,17 @@ boost::optional<DbRecord> Db::FindRecordUnsafe(const std::string& key, RecordPos
 
 static void Copy(std::istream& from, std::ostream& to, std::streamoff count)
 {
-    constexpr auto buffer_size = 4 * 1024 * 1024;
-    char buffer[buffer_size];
+    constexpr auto buffer_size_limit = 4 * 1024 * 1024;
+    const auto buffer_size           = std::min<std::streamoff>(buffer_size_limit, count);
+    auto buffer                      = std::vector<char>(buffer_size, 0);
     auto left = count;
 
     while(left > 0 && !from.eof())
     {
         const auto to_read = std::min<std::streamoff>(left, buffer_size);
-        from.read(buffer, to_read);
+        from.read(buffer.data(), to_read);
         const auto read = from.gcount();
-        to.write(buffer, read);
+        to.write(buffer.data(), read);
         left -= read;
     }
 }
@@ -249,7 +245,7 @@ bool Db::FlushUnsafe(const DbRecord& record, const RecordPositions* pos)
     if(pos->begin < 0 || pos->end < 0)
     {
         {
-            std::ofstream file(filename, std::ios::app);
+            std::ofstream file(filename, std::ios::app | std::ios::binary);
 
             if(!file)
             {
@@ -265,7 +261,7 @@ bool Db::FlushUnsafe(const DbRecord& record, const RecordPositions* pos)
     }
     else
     {
-        std::ifstream from(filename, std::ios::ate);
+        std::ifstream from(filename, std::ios::ate | std::ios::binary);
 
         if(!from)
         {
@@ -274,7 +270,7 @@ bool Db::FlushUnsafe(const DbRecord& record, const RecordPositions* pos)
         }
 
         const auto temp_name = filename + ".temp";
-        std::ofstream to(temp_name);
+        std::ofstream to(temp_name, std::ios::binary);
 
         if(!to)
         {

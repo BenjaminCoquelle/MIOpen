@@ -317,12 +317,13 @@ miopenStatus_t BatchNormBwdTrainFusionOpDescriptor::GetNetworkConfig(std::string
     if(input_desc.GetLengths().empty())
         MIOPEN_THROW("The input descriptor is not set");
 
-    network_config += std::to_string(variant) + std::to_string(xgridsize) + std::to_string(ldsgcn) +
-                      std::to_string(ygridsize) + std::to_string(xlocalsize) +
-                      std::to_string(ylocalsize) + "bn" + std::to_string(mode) + "n" +
-                      std::to_string(n) + "cstride" + std::to_string(in_cstride) + "nstride" +
-                      std::to_string(in_nstride) + "c" + std::to_string(c) + "nchw" +
-                      std::to_string(in_nchw);
+    network_config += "variant" + std::to_string(variant) + "gx" + std::to_string(xgridsize) +
+                      "gcn" + std::to_string(ldsgcn) + "gy" + std::to_string(ygridsize) + "lx" +
+                      std::to_string(xlocalsize) + "ly" + std::to_string(ylocalsize) + "bn" +
+                      std::to_string(mode) + "n" + std::to_string(n) + "cstride" +
+                      std::to_string(in_cstride) + "nstride" + std::to_string(in_nstride) + "c" +
+                      std::to_string(c) + "nchw" + std::to_string(in_nchw);
+
     return miopenStatusSuccess;
 }
 
@@ -390,13 +391,9 @@ BatchNormBwdTrainFusionOpDescriptor::GetLocalWGSz(Handle& /*handle*/,
 
     if(mode == miopenBNSpatial)
     {
-        if(in_cstride > 1024)
+        if(in_cstride <= 1024 && in_cstride > 512)
         {
-            xlocalsize = 1024;
-        }
-        else if(in_cstride > 512)
-        {
-            xlocalsize = std::min(64 * ((in_cstride + 63) / 64), static_cast<unsigned long>(1024));
+            xlocalsize = std::min(64 * ((in_cstride + 63) / 64), static_cast<size_t>(1024));
         }
         else
         {
@@ -513,12 +510,13 @@ miopenStatus_t BatchNormFwdTrainFusionOpDescriptor::GetNetworkConfig(std::string
     if(input_desc.GetLengths().empty())
         MIOPEN_THROW("The input descriptor is not set");
 
-    network_config +=
-        std::to_string(variant) + std::to_string(xgridsize) + std::to_string(ldsgcn) +
-        std::to_string(ygridsize) + std::to_string(xlocalsize) + std::to_string(ylocalsize) + "bn" +
-        std::to_string(mode) + "sbs" + std::to_string(static_cast<int>(saveBatchStats)) + "sps" +
-        std::to_string(static_cast<int>(savePopStats)) + std::to_string(n) +
-        std::to_string(in_cstride) + std::to_string(in_nstride) + std::to_string(in_nchw);
+    network_config += "variant" + std::to_string(variant) + "gx" + std::to_string(xgridsize) +
+                      "gcn" + std::to_string(ldsgcn) + "gy" + std::to_string(ygridsize) + "lx" +
+                      std::to_string(xlocalsize) + "ly" + std::to_string(ylocalsize) + "bn" +
+                      std::to_string(mode) + "sbs" +
+                      std::to_string(static_cast<int>(saveBatchStats)) + "sps" +
+                      std::to_string(static_cast<int>(savePopStats)) + "n" + std::to_string(n) +
+                      "hw" + std::to_string(in_cstride) + "chw" + std::to_string(in_nstride);
 
     return miopenStatusSuccess;
 }
@@ -646,16 +644,38 @@ std::string BatchNormFwdTrainFusionOpDescriptor::GetArgKey(const std::string& k)
 {
     return k + std::to_string(GetIdx());
 }
+bool BatchNormFwdTrainFusionOpDescriptor::GetOpAttr(const std::string& sym, int& val) const
+{
+    if(sym == "bn_mode")
+    {
+        val = mode;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
 OpKernelArg BatchNormFwdTrainFusionOpDescriptor::GetOpAttr(const std::string& k) const
 {
-    if(k == "iNHW")
+    int v;
+    if(GetOpAttr(k, v))
+    {
+        return OpKernelArg(v);
+    }
+    else if(k == "diff_scale")
+    {
+        return OpKernelArg(static_cast<float>(0.0));
+    }
+    else if(k == "iNHW")
     {
         int n, h, w;
         std::tie(n, std::ignore, h, w) = tien<4>(input_desc.GetLengths());
-        return OpKernelArg(1.0f / static_cast<float>(n * h * w));
+        auto nhw = static_cast<float>(n * h * w);
+        return OpKernelArg(static_cast<float>(1.0f / nhw));
     }
     else
-        MIOPEN_THROW("BatchNormBwdTrainFusionOpDescriptor does not support attribute: " + k);
+        MIOPEN_THROW("BatchNormFwdTrainFusionOpDescriptor does not support attribute: " + k);
 }
 /// END BN traing forward
 

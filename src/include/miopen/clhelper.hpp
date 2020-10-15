@@ -37,21 +37,24 @@ using ClProgramPtr = MIOPEN_MANAGE_PTR(cl_program, clReleaseProgram);
 using ClKernelPtr  = MIOPEN_MANAGE_PTR(cl_kernel, clReleaseKernel);
 using ClAqPtr      = MIOPEN_MANAGE_PTR(miopenAcceleratorQueue_t, clReleaseCommandQueue);
 
-ClProgramPtr LoadBinaryProgram(cl_context ctx, cl_device_id device, const std::string& source);
+template <typename T>
+ClProgramPtr LoadBinaryProgram(cl_context ctx, cl_device_id device, T& source);
 
 ClProgramPtr LoadProgram(cl_context ctx,
                          cl_device_id device,
                          const std::string& program_name,
                          std::string params,
-                         bool is_kernel_str);
+                         bool is_kernel_str,
+                         const std::string& kernel_src);
 void SaveProgramBinary(const ClProgramPtr& program, const std::string& name);
 ClKernelPtr CreateKernel(cl_program program, const std::string& kernel_name);
 inline ClKernelPtr CreateKernel(const ClProgramPtr& program, const std::string& kernel_name)
 {
     return CreateKernel(program.get(), kernel_name);
 }
+#if 0 /// \todo Dead code?
 ClAqPtr CreateQueueWithProfiling(cl_context ctx, cl_device_id dev);
-
+#endif
 cl_device_id GetDevice(cl_command_queue q);
 cl_context GetContext(cl_command_queue q);
 } // namespace miopen

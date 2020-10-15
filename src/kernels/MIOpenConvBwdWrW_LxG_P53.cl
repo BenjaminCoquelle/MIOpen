@@ -23,37 +23,7 @@
  * SOFTWARE.
  *
  *******************************************************************************/
-
-#define PPCAT_NX(A, B) A##B
-#define PPCAT(A, B) PPCAT_NX(A, B)
-#define TWO 2
-#define FOUR 4
-#define EIGHT 8
-
-#if MIOPEN_USE_FP16 == 1
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-#define _FLOAT half
-#define _FLOAT_ACCUM float
-#ifndef HALF_MAX
-#define MAX_VAL 65504 /* max value */
-#else
-#define MAX_VAL HALF_MAX
-#endif
-
-#endif
-#if MIOPEN_USE_FP32 == 1
-#define _FLOAT float
-#define _FLOAT_ACCUM float
-#ifndef FLT_MAX
-#define MAX_VAL 3.402823466e+38F /* max value */
-#else
-#define MAX_VAL FLT_MAX
-#endif
-#endif
-
-#define _FLOAT2 PPCAT(_FLOAT, TWO)
-#define _FLOAT4 PPCAT(_FLOAT, FOUR)
-#define _FLOAT8 PPCAT(_FLOAT, EIGHT)
+#include "float_types.h"
 
 #define UNUSED __attribute__((__unused__))
 
@@ -124,17 +94,7 @@
 // if to read all of the number of MLO_N_LCL_IN_MAPS input channel or not
 #define MLO_READ_PARTIAL_N_LCL_IN_MAPS (MLO_N_INPUTS % MLO_N_LCL_IN_MAPS != 0)
 
-__attribute__((always_inline)) uint iDiv(uint v, uint d)
-{
-    uint r = v / d;
-    return (r);
-}
-
-__attribute__((always_inline)) uint iMod(uint v, uint u, uint d)
-{
-    uint r = v - mul24((uint)u, (uint)d);
-    return (r);
-}
+#include "math_ops.h"
 
 /*
         group cooperative read
@@ -143,16 +103,16 @@ __attribute__((always_inline)) uint iMod(uint v, uint u, uint d)
 
         no guard against number of inputs
 */
-__attribute__((always_inline)) void readInput(uint lcl_id,
-                                              uint gbl_in_scan_off,
+void readInput(uint lcl_id,
+               uint gbl_in_scan_off,
 #if !MLO_READ_PARTIAL_N_LCL_IN_MAPS
-                                              UNUSED
+               UNUSED
 #endif
-                                                  uint n_in_map_reads,
-                                              uint n_v_reads,
-                                              const __global _FLOAT* __restrict bot,
-                                              __local _FLOAT* __restrict lcl_bot,
-                                              uint chunk_id)
+                   uint n_in_map_reads,
+               uint n_v_reads,
+               const __global _FLOAT* __restrict bot,
+               __local _FLOAT* __restrict lcl_bot,
+               uint chunk_id)
 {
 
 #if MLO_IN_WIDTH_N_LOOPS > 1 && MLO_FILTER_PAD0 > 0
@@ -279,15 +239,14 @@ __attribute__((always_inline)) void readInput(uint lcl_id,
 
         loop over filter vertical size
 */
-__attribute__((always_inline)) void
-Processing(UNUSED uint sc,
-           uint sc_lcl_off,
-           uint top_lim,
-           int bot_lim, // bot_lim could be negative at lower boundary padding
-           __private _FLOAT_ACCUM* __restrict pvt_accum,
-           __local _FLOAT* __restrict lcl_bot,
-           __private _FLOAT* __restrict top_dat,
-           uint chunk_id)
+void Processing(UNUSED uint sc,
+                uint sc_lcl_off,
+                uint top_lim,
+                int bot_lim, // bot_lim could be negative at lower boundary padding
+                __private _FLOAT_ACCUM* __restrict pvt_accum,
+                __local _FLOAT* __restrict lcl_bot,
+                __private _FLOAT* __restrict top_dat,
+                uint chunk_id)
 {
     for(int l = top_lim; l >= bot_lim; --l)
     {
@@ -326,7 +285,7 @@ Processing(UNUSED uint sc,
                         _FLOAT top_val = top_dat[pvt_top_off];
                         pvt_accum[pvt_accum_off]
                             // each wk-it process an input
-                            += (_FLOAT_ACCUM)(bot_val * top_val);
+                            += CVT_FLOAT2ACCUM(bot_val) * CVT_FLOAT2ACCUM(top_val);
                     }
                 }
             }
@@ -334,7 +293,7 @@ Processing(UNUSED uint sc,
     }
 }
 
-__attribute__((always_inline)) void moveOutputUp(__private _FLOAT* __restrict top_dat)
+void moveOutputUp(__private _FLOAT* __restrict top_dat)
 {
     // move up output to reduce overfetch
     for(uint k = 0; k < MLO_N_LCL_OUT_MAPS; ++k)
@@ -351,7 +310,7 @@ __attribute__((always_inline)) void moveOutputUp(__private _FLOAT* __restrict to
     }
 }
 
-__attribute__((always_inline)) void zeroInitLDS(uint lcl_id, __local _FLOAT* __restrict lcl_bot)
+void zeroInitLDS(uint lcl_id, __local _FLOAT* __restrict lcl_bot)
 {
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -363,14 +322,14 @@ __attribute__((always_inline)) void zeroInitLDS(uint lcl_id, __local _FLOAT* __r
     barrier(CLK_LOCAL_MEM_FENCE);
 }
 
-__attribute__((always_inline)) void spanReadingOutput(int spn,
-                                                      int k,
-                                                      int j,
-                                                      int top_df_off,
-                                                      _FLOAT mask,
-                                                      __private _FLOAT* __restrict top_dat,
-                                                      const __global _FLOAT* __restrict top_df,
-                                                      uint chunk_id)
+void spanReadingOutput(int spn,
+                       int k,
+                       int j,
+                       int top_df_off,
+                       _FLOAT mask,
+                       __private _FLOAT* __restrict top_dat,
+                       const __global _FLOAT* __restrict top_df,
+                       uint chunk_id)
 {
     int pvt_off                     = k * MLO_IN_TILE0 * MLO_FILTER_SIZE1 + j * MLO_IN_TILE0;
     const __global _FLOAT* top_df_p = &top_df[top_df_off];
@@ -523,7 +482,7 @@ MIOpenCvBwdWrW(const __global _FLOAT* __restrict top_df,
 
     for(uint i = 0; i < MLO_ACCUM_SZ; ++i)
     {
-        pvt_accum[i] = 0;
+        pvt_accum[i] = (_FLOAT_ACCUM)0;
     }
 
     // zero out LDS
@@ -806,7 +765,7 @@ MIOpenCvBwdWrW(const __global _FLOAT* __restrict top_df,
                         (k * MLO_N_LCL_IN_MAPS + c) * MLO_FILTER_SIZE1 * MLO_FILTER_SIZE0 +
                         l * MLO_FILTER_SIZE0 + n;
 
-                    lcl[lcl_id * MLO_FILTER_SIZE0 + n] = pvt_accum[pvt_off];
+                    lcl[lcl_id * MLO_FILTER_SIZE0 + n] = CVT_ACCUM2FLOAT(pvt_accum[pvt_off]);
                 }
 
                 barrier(CLK_LOCAL_MEM_FENCE);
@@ -821,7 +780,8 @@ MIOpenCvBwdWrW(const __global _FLOAT* __restrict top_df,
                             uint pvt_off =
                                 (k * MLO_N_LCL_IN_MAPS + c) * MLO_FILTER_SIZE1 * MLO_FILTER_SIZE0 +
                                 l * MLO_FILTER_SIZE0 + n;
-                            pvt_accum[pvt_off] += lcl[(lcl_id + s + 1) * MLO_FILTER_SIZE0 + n];
+                            pvt_accum[pvt_off] +=
+                                CVT_FLOAT2ACCUM(lcl[(lcl_id + s + 1) * MLO_FILTER_SIZE0 + n]);
                         }
                     }
                 }
@@ -849,9 +809,9 @@ MIOpenCvBwdWrW(const __global _FLOAT* __restrict top_df,
                 {
                     weights_df[wei_df_off + k * MLO_OUT_STACKS * MLO_WEI_BATCH_STRIDE +
                                c * MLO_WEI_CHANNEL_STRIDE + i] =
-                        pvt_accum[(k * MLO_N_LCL_IN_MAPS + c) * MLO_FILTER_SIZE1 *
-                                      MLO_FILTER_SIZE0 +
-                                  i];
+                        CVT_ACCUM2FLOAT(pvt_accum[(k * MLO_N_LCL_IN_MAPS + c) * MLO_FILTER_SIZE1 *
+                                                      MLO_FILTER_SIZE0 +
+                                                  i]);
                 }
             }
         }
@@ -875,7 +835,7 @@ MIOpenCvBwdWrW_rdc(const __global _FLOAT* __restrict weight_df_tmp,
     uint wei_idx     = wei_idx0 & (MLO_WEI_CHANNEL_STRIDE - 1);
 #endif
 
-    _FLOAT pvt_accum_wei[MLO_UT_READ_UNIT] = {MLO_UT_READ_UNIT * (_FLOAT)0};
+    _FLOAT_ACCUM pvt_accum_wei[MLO_UT_READ_UNIT] = {MLO_UT_READ_UNIT * 0};
     //	for (uint i = 0; i < MLO_UT_READ_UNIT; ++i)
     //	{
     //		pvt_accum_wei[i] = 0;
@@ -888,14 +848,15 @@ MIOpenCvBwdWrW_rdc(const __global _FLOAT* __restrict weight_df_tmp,
     {
         for(uint j = 0; j < MLO_UT_READ_UNIT; ++j)
         {
-            pvt_accum_wei[j] += weight_df_tmp[(wei_blk_idx * MLO_WEI_CHANNEL_STRIDE +
+            pvt_accum_wei[j] +=
+                CVT_FLOAT2ACCUM(weight_df_tmp[(wei_blk_idx * MLO_WEI_CHANNEL_STRIDE +
                                                i * MLO_N_OUTPUTS * MLO_WEI_BATCH_STRIDE) +
-                                              wei_idx + j];
+                                              wei_idx + j]);
         }
     }
 
     for(uint j = 0; j < MLO_UT_READ_UNIT; ++j)
     {
-        weights_df[wei_idx0 + j] = pvt_accum_wei[j];
+        weights_df[wei_idx0 + j] = CVT_ACCUM2FLOAT(pvt_accum_wei[j]);
     }
 }

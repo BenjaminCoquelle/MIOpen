@@ -7,7 +7,11 @@ namespace miopen {
 
 std::string ExpandUser(std::string p)
 {
+#if defined(WIN32)
+    const char* home_dir = GetStringEnv(USERPROFILE{});
+#else
     const char* home_dir = GetStringEnv(HOME{});
+#endif
     if(home_dir == nullptr || home_dir == std::string("/") || home_dir == std::string(""))
     {
         // todo:

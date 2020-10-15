@@ -32,6 +32,7 @@
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <miopen/config.h>
 #include <miopen/export.h>
@@ -58,6 +59,7 @@
  * @defgroup softmax
  * @defgroup RNN
  * @defgroup fusion
+ * @defgroup LossFunction
  *
 */
 
@@ -287,26 +289,50 @@ MIOPEN_DECLARE_OBJECT(miopenActivationDescriptor);
 */
 MIOPEN_DECLARE_OBJECT(miopenRNNDescriptor);
 
+/*! @ingroup LossFunction
+* @brief Creates the miopenCTCLossDescriptor_t type
+*/
+MIOPEN_DECLARE_OBJECT(miopenCTCLossDescriptor);
+
 /*! @ingroup tensor
  * @enum miopenDataType_t
  * MIOpen floating point datatypes. Both 32-bit and 16-bit floats are supported in MIOpen.
 */
 typedef enum {
-    miopenHalf  = 0, /*!< 16-bit floating point (Not supported) */
+    miopenHalf  = 0, /*!< 16-bit floating point (Fully supported) */
     miopenFloat = 1, /*!< 32-bit floating point (Fully supported) */
-    miopenInt32 = 2, /*!< 32-bit int point (Not supported) */
-    miopenInt8  = 3, /*!< 8-bit int point (Not supported) */
+    miopenInt32 = 2, /*!< 32-bit int point (Partially supported) */
+    miopenInt8  = 3, /*!< 8-bit int point (Partially supported) */
+    miopenInt8x4 =
+        4, /*!< Pack of four 8-bit int points in NCHW_VECT_C format (Partially supported) */
+    miopenBFloat16 = 5, /*!< 16-bit binary floating point (8-bit exponent, 7-bit fraction)
+                           (Partially supported) */
 } miopenDataType_t;
+
+/*! @ingroup pooling
+ * @enum miopenIndexType_t
+ * MIOpen index datatypes.
+*/
+typedef enum {
+    miopenIndexUint8  = 0, /*!<  8-bit unsigned */
+    miopenIndexUint16 = 1, /*!< 16-bit unsigned */
+    miopenIndexUint32 = 2, /*!< 32-bit unsigned */
+    miopenIndexUint64 = 3, /*!< 64-bit unsigned */
+} miopenIndexType_t;
 
 /*! @ingroup tensor
  * @enum miopenTensorOp_t
  * Element-wise tensor operation modes
 */
 typedef enum {
-    miopenTensorOpAdd = 0, /*!< Add tensors element-wise */
-    miopenTensorOpMul = 1, /*!< Multiply two tensors element-wise */
-    miopenTensorOpMin = 2, /*!< Minimum of tensor element pairs */
-    miopenTensorOpMax = 3, /*!< Maximum of tensor element pairs */
+    miopenTensorOpAdd  = 0, /*!< Add tensors element-wise */
+    miopenTensorOpMul  = 1, /*!< Multiply two tensors element-wise */
+    miopenTensorOpMin  = 2, /*!< Minimum of tensor element pairs */
+    miopenTensorOpMax  = 3, /*!< Maximum of tensor element pairs */
+    miopenTensorOpExp  = 4, /*!< Takes exponential base e of the sum of 2 tensor elements */
+    miopenTensorOpPow  = 5, /*!< Tensor element at the power of a 2nd tensor element */
+    miopenTensorOpLog  = 6, /*!< Takes natural logarithm of the sum of 2 tensor elements */
+    miopenTensorOpRDiv = 7, /*!< Divide two tensors element-wise for real types*/
 } miopenTensorOp_t;
 
 /*! @ingroup convolutions
@@ -316,8 +342,8 @@ typedef enum {
 typedef enum {
     miopenConvolution = 0, /*!< Cross-Correlation convolution */
     miopenTranspose   = 1, /*!< Transpose convolutions -- deconvolution */
-    miopenGroupConv   = 2, /*!< Group convolution */
-    miopenDepthwise   = 3, /*!< Depthwise convolution */
+    miopenGroupConv   = 2, /*!< Deprecated Group convolution legacy, ToBe Removed */
+    miopenDepthwise   = 3, /*!< Deprecated Depthwise convolution legacy, ToBe Removed */
 } miopenConvolutionMode_t;
 
 /*! @ingroup padding
@@ -335,8 +361,9 @@ typedef enum {
  * Pooling layer mode
 */
 typedef enum {
-    miopenPoolingMax     = 0, /*!< Maximum pooling */
-    miopenPoolingAverage = 1, /*!< Average pooling */
+    miopenPoolingMax              = 0, /*!< Maximum pooling */
+    miopenPoolingAverage          = 1, /*!< Average pooling */
+    miopenPoolingAverageInclusive = 2, /*!< Inclusive Average pooling */
 } miopenPoolingMode_t;
 
 /*! @ingroup LRN
@@ -377,6 +404,26 @@ typedef enum {
         9, /*!< Exponential Rectified Linear Unit \f$ \alpha * (e^{x} - 1) | x <= 0; x | x > 0 \f$
               */
 } miopenActivationMode_t;
+
+/*! @ingroup softmax
+ * @enum miopenSoftmaxAlgorithm_t
+ * Softmax implementation algorithms
+*/
+typedef enum {
+    MIOPEN_SOFTMAX_FAST     = 0, /*!< straightforward softmax */
+    MIOPEN_SOFTMAX_ACCURATE = 1, /*!< scaled softmax by maximum value in input domain */
+    MIOPEN_SOFTMAX_LOG      = 2, /*!< log softmax */
+} miopenSoftmaxAlgorithm_t;
+
+/*! @ingroup softmax
+ * @enum miopenSoftmaxMode_t
+ * Softmax modes
+*/
+typedef enum {
+    MIOPEN_SOFTMAX_MODE_INSTANCE = 0, /*!< compute per image (N) across C, H, W */
+    MIOPEN_SOFTMAX_MODE_CHANNEL =
+        1, /*!< compute per spatial location (H, W) per image (N) across C */
+} miopenSoftmaxMode_t;
 
 /** @addtogroup tensor
  *
@@ -514,6 +561,8 @@ MIOPEN_EXPORT miopenStatus_t miopenOpTensor(miopenHandle_t handle,
 
 /*! @brief Fills a tensor with a single value.
  *
+ * Supported datatypes are fp32, fp16, and bfp16
+ *
  * @param handle     MIOpen handle (input)
  * @param yDesc      Tensor descriptor for tensor y (input)
  * @param y          Tensor y (input)
@@ -526,6 +575,8 @@ MIOPEN_EXPORT miopenStatus_t miopenSetTensor(miopenHandle_t handle,
                                              const void* alpha);
 
 /*! @brief Scales all elements in a tensor by a single value.
+ *
+ * Supported datatypes are fp32 and fp16
  *
  * @param handle     MIOpen handle (input)
  * @param yDesc      Tensor descriptor for tensor y (input)
@@ -548,6 +599,8 @@ MIOPEN_EXPORT miopenStatus_t miopenGetTensorNumBytes(miopenTensorDescriptor_t te
                                                      size_t* numBytes);
 
 /*! @brief Copies one tensor to another tensor with a different layout.
+ *
+ * Currently this is used for transforming from int8 to int8x4 vector datatypes
  *
  * @param handle     MIOpen handle (input)
  * @param alpha      Floating point scaling factor, allocated on the host (input)
@@ -582,7 +635,7 @@ MIOPEN_EXPORT miopenStatus_t miopenTransformTensor(miopenHandle_t handle,
 MIOPEN_EXPORT miopenStatus_t
 miopenCreateConvolutionDescriptor(miopenConvolutionDescriptor_t* convDesc);
 
-/*! @brief Creates a convolution layer descriptor
+/*! @brief Creates a 2-D convolution layer descriptor
  *
  * For group/depthwise convolution dilation height and width, only a dilation value of 1 is
  * supported.
@@ -591,8 +644,8 @@ miopenCreateConvolutionDescriptor(miopenConvolutionDescriptor_t* convDesc);
  * @param c_mode     Convolutional mode (input)
  * @param pad_h      Height input data padding (input)
  * @param pad_w      Width input data padding (input)
- * @param u          Stride for the height of input data (input)
- * @param v          Stride for the width of input data (input)
+ * @param stride_h   Stride for the height of input data (input)
+ * @param stride_w   Stride for the width of input data (input)
  * @param dilation_h Dilation height (input)
  * @param dilation_w Dilation width (input)
  * @return           miopenStatus_t
@@ -601,12 +654,30 @@ MIOPEN_EXPORT miopenStatus_t miopenInitConvolutionDescriptor(miopenConvolutionDe
                                                              miopenConvolutionMode_t c_mode,
                                                              int pad_h,
                                                              int pad_w,
-                                                             int u,
-                                                             int v,
+                                                             int stride_h,
+                                                             int stride_w,
                                                              int dilation_h,
                                                              int dilation_w);
 
-/*! @brief Retrieves a convolution layer descriptor's details
+/*! @brief Creates a N-dimensional convolution layer descriptor
+ *
+ * @param convDesc      Convolution layer descriptor (output)
+ * @param spatialDim    Convolutional spatial dimension (input)
+ * @param padA          Array of input data padding (input)
+ * @param strideA       Array of convolution stride (input)
+ * @param dilationA     Array of convolution dilation (input)
+ * @param c_mode        Convolutional mode (input)
+ * @return              miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenInitConvolutionNdDescriptor(miopenConvolutionDescriptor_t convDesc,
+                                  int spatialDim,
+                                  int* padA,
+                                  int* strideA,
+                                  int* dilationA,
+                                  miopenConvolutionMode_t c_mode);
+
+/*! @brief Retrieves a 2-D convolution layer descriptor's details
  *
  * For group/depthwise convolution dilation height and width, only a dilation value of 1 is
  * supported.
@@ -615,8 +686,8 @@ MIOPEN_EXPORT miopenStatus_t miopenInitConvolutionDescriptor(miopenConvolutionDe
  * @param c_mode     Convolutional mode (output)
  * @param pad_h      Height input data padding (output)
  * @param pad_w      Width input data padding (output)
- * @param u          Stride for the height of input data (output)
- * @param v          Stride for the width of input data (output)
+ * @param stride_h   Stride for the height of input data (output)
+ * @param stride_w   Stride for the width of input data (output)
  * @param dilation_h Dilation height (output)
  * @param dilation_w Dilation width (output)
  * @return           miopenStatus_t
@@ -625,17 +696,38 @@ MIOPEN_EXPORT miopenStatus_t miopenGetConvolutionDescriptor(miopenConvolutionDes
                                                             miopenConvolutionMode_t* c_mode,
                                                             int* pad_h,
                                                             int* pad_w,
-                                                            int* u,
-                                                            int* v,
+                                                            int* stride_h,
+                                                            int* stride_w,
                                                             int* dilation_h,
                                                             int* dilation_w);
 
+/*! @brief Retrieves a N-dimensional convolution layer descriptor's details
+ *
+ * @param convDesc               Convolution layer descriptor (input)
+ * @param requestedSpatialDim    Expected convolution spatial dimension (intput)
+ * @param spatialDim             Convolutional spatial dimension (output)
+ * @param padA                   Array of input data padding (output)
+ * @param strideA                Array of convolution stride (output)
+ * @param dilationA              Array of convolution dilation (output)
+ * @param c_mode                 Convolutional mode (output)
+ * @return                       miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenGetConvolutionNdDescriptor(miopenConvolutionDescriptor_t convDesc,
+                                 int requestedSpatialDim,
+                                 int* spatialDim,
+                                 int* padA,
+                                 int* strideA,
+                                 int* dilationA,
+                                 miopenConvolutionMode_t* c_mode);
+
 /*! @brief Set the number of groups to be used in Group/Depthwise convolution
 *
-* Must be called before all computational APIs of Group/Depthwise convolution, it is preferable to
+* Must be called before all computational APIs of group/depthwise convolution, it is preferable to
 * call miopenInitConvolutionDescriptor() first, then miopenSetConvolutionGroupCount() to fully
-* initialize
-* group convolutions.
+* initialize group convolutions. Both Convolution Mode and Transpose Convolution Mode support
+* group/depthwise convolution. To run depthwise convolution, set groupCount value equal to number of
+* channels.
 *
 * @param convDesc   Convolution layer descriptor (output)
 * @param groupCount      number of groups, in depthwise conv using filter_number/channel_multiplier
@@ -644,6 +736,36 @@ MIOPEN_EXPORT miopenStatus_t miopenGetConvolutionDescriptor(miopenConvolutionDes
 */
 MIOPEN_EXPORT miopenStatus_t miopenSetConvolutionGroupCount(miopenConvolutionDescriptor_t convDesc,
                                                             int groupCount);
+
+/*! @brief Set the output padding to be used in 2-D Transpose convolution
+*
+* This function is optional for initialization of Transpose convolution. If applicable, it must be
+* called before all computational APIs of Transpose convolution. It is preferable to call
+* miopenInitConvolutionDescriptor() first, then miopenSetTransposeConvOutputPadding() to fully
+* initialize transpose convolutions.
+*
+* @param convDesc   Convolution layer descriptor (output)
+* @param adj_h      output padding for the height of output data (input)
+* @param adj_w      output padding for the width of output data (input)
+* @return           miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t
+miopenSetTransposeConvOutputPadding(miopenConvolutionDescriptor_t convDesc, int adj_h, int adj_w);
+
+/*! @brief Set the output padding to be used in N-dimensional Transpose convolution
+*
+* This function is optional for initialization of Transpose convolution. If applicable, it must be
+* called before all computational APIs of Transpose convolution. It is preferable to call
+* miopenInitConvolutionNdDescriptor() first, then miopenSetTransposeConvNdOutputPadding() to fully
+* initialize transpose convolutions. Currently, 2-D and 3-D convolutions are supported.
+*
+* @param convDesc      Convolution layer descriptor (output)
+* @param spatialDim    Convolutional spatial dimension (input)
+* @param adjA          array of output padding for output data (input)
+* @return              miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t miopenSetTransposeConvNdOutputPadding(
+    miopenConvolutionDescriptor_t convDesc, int spatialDim, int* adjA);
 
 /*! @brief Get the shape of a resulting 4-D tensor from a 2-D convolution
  *
@@ -671,6 +793,26 @@ miopenGetConvolutionForwardOutputDim(miopenConvolutionDescriptor_t convDesc,
                                      int* h,
                                      int* w);
 
+/*! @brief Get the shape of a resulting N-dimensional tensor from a (N-2)-dimensional convolution
+ *
+ * This function returns the dimensions of the resulting N-dimensional tensor of a (N-2)-dimensional
+ * convolution, given the convolution descriptor, the input tensor descriptor
+ * and the filter descriptor. It is used to setup the output tensor descriptor prior to executing
+ * the convolution layer.
+ *
+ * @param convDesc          Convolution layer descriptor (input)
+ * @param inputTensorDesc   Input data tensor descriptor (input)
+ * @param filterDesc        Weight descriptor (input)
+ * @param nDim              Pointer to Output data tensor dimension (output)
+ * @param outputTensorDimA  Array of Output data tensor length (output)
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenGetConvolutionNdForwardOutputDim(miopenConvolutionDescriptor_t convDesc,
+                                       const miopenTensorDescriptor_t inputTensorDesc,
+                                       const miopenTensorDescriptor_t filterDesc,
+                                       int* nDim,
+                                       int* outputTensorDimA);
+
 /*! @brief Destroys the tensor descriptor object
  *
  * @param convDesc Convolution tensor descriptor type (input)
@@ -684,18 +826,20 @@ miopenDestroyConvolutionDescriptor(miopenConvolutionDescriptor_t convDesc);
  * convolution implementation.
  */
 typedef enum {
-    miopenConvolutionFwdAlgoGEMM     = 0, /*!< GEMM variant */
-    miopenConvolutionFwdAlgoDirect   = 1, /*!< Direct convolutions */
-    miopenConvolutionFwdAlgoFFT      = 2, /*!< Fast Fourier Transform indirect convolutions */
-    miopenConvolutionFwdAlgoWinograd = 3, /*!< Winograd indirect convolutions */
+    miopenConvolutionFwdAlgoGEMM         = 0, /*!< GEMM variant */
+    miopenConvolutionFwdAlgoDirect       = 1, /*!< Direct convolutions */
+    miopenConvolutionFwdAlgoFFT          = 2, /*!< Fast Fourier Transform indirect convolutions */
+    miopenConvolutionFwdAlgoWinograd     = 3, /*!< Winograd indirect convolutions */
+    miopenConvolutionFwdAlgoImplicitGEMM = 5, /*!< Implicit GEMM convolutions, fp32 only */
 } miopenConvFwdAlgorithm_t;
 
 /*! @enum miopenConvBwdWeightsAlgorithm_t
  * Convolutional algorithm mode for back propagation on weights.
  */
 typedef enum {
-    miopenConvolutionBwdWeightsAlgoGEMM   = 0, /*!< GEMM variant */
-    miopenConvolutionBwdWeightsAlgoDirect = 1, /*!< Direct convolution algorithm */
+    miopenConvolutionBwdWeightsAlgoGEMM     = 0, /*!< GEMM variant */
+    miopenConvolutionBwdWeightsAlgoDirect   = 1, /*!< Direct convolution algorithm */
+    miopenConvolutionBwdWeightsAlgoWinograd = 3, /*!< Winograd convolutions */
 } miopenConvBwdWeightsAlgorithm_t;
 
 /*! @enum miopenConvBwdDataAlgorithm_t
@@ -706,8 +850,18 @@ typedef enum {
     miopenConvolutionBwdDataAlgoDirect   = 1, /*!< Direct convolutions */
     miopenConvolutionBwdDataAlgoFFT      = 2, /*!< Fast Fourier Transform indirect convolutions */
     miopenConvolutionBwdDataAlgoWinograd = 3, /*!< Winograd indirect convolutions */
-    miopenTransposeBwdDataAlgoGEMM       = 4, /*!< Transpose GEMM variant */
+    miopenTransposeBwdDataAlgoGEMM =
+        4, /*!< Deprecated Transpose GEMM variant legacy, ToBe Removed */
+    miopenConvolutionBwdDataAlgoImplicitGEMM = 5, /*!< Implicit GEMM convolutions, fp32 only */
 } miopenConvBwdDataAlgorithm_t;
+
+typedef enum {
+    miopenConvolutionAlgoGEMM         = 0, /*!< GEMM variant */
+    miopenConvolutionAlgoDirect       = 1, /*!< Direct convolutions */
+    miopenConvolutionAlgoFFT          = 2, /*!< Fast Fourier Transform indirect convolutions */
+    miopenConvolutionAlgoWinograd     = 3, /*!< Winograd indirect convolutions */
+    miopenConvolutionAlgoImplicitGEMM = 5, /*!< Implicit GEMM convolutions, fp32 only */
+} miopenConvAlgorithm_t;
 
 /*! @struct miopenConvAlgoPerf_t
 
@@ -730,6 +884,445 @@ typedef struct
     float time;    /*!< Time to exectued the selected algorithm represented in the union */
     size_t memory; /*!< Workspace required to run the selected algorithm represented in the union */
 } miopenConvAlgoPerf_t;
+
+/*! @struct miopenConvSolution_t
+
+ * @brief Performance struct for forward, backward filter, or backward data algorithms in immediate
+ mode
+ *
+ * Contains an integer identifying the solution and the algorithm for the solution,
+ * as well as the runtime, workspace size and a boolean flag indicating whether the returned
+ * solution is a heuristic or resulting from an actual run
+ *
+ */
+typedef struct
+{
+    float time; /*!< Represents the approximate time required to execute this solution on the GPU,
+                     in milliseconds. This value may either be based on an acutal kernel run or an
+                     esitmate based on a heuristic.*/
+    size_t workspace_size; /*!< Workspace required to run the selected algorithm represented in the
+                              union */
+    uint64_t solution_id;  /*!< Identifier for the returned solution */
+    miopenConvAlgorithm_t algorithm; /*!< The algorithm used to compute the solution */
+} miopenConvSolution_t;
+
+/*! @brief Query the maximum number of solutions applicable for the given input/output and weights
+ *  tensor descriptor for Convolution in the Forward direction.
+ *
+ * This call returns the maximum number of applicable solutions for a forward convolution problem.
+ * The \c solutionCount returned may be used to allocate the memory required for the
+ * \c miopenConvAlgoPerf_t which is required by miopenConvolutionGetSolution API calls.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param xDesc          Tensor descriptor for input data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param yDesc          Tensor descriptor for output data tensor y (input)
+ * @param solutionCount  Pointer to memory to return number of applicable solutions (output)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionForwardGetSolutionCount(miopenHandle_t handle,
+                                         const miopenTensorDescriptor_t wDesc,
+                                         const miopenTensorDescriptor_t xDesc,
+                                         const miopenConvolutionDescriptor_t convDesc,
+                                         const miopenTensorDescriptor_t yDesc,
+                                         size_t* solutionCount);
+
+/*! @brief Query the applicable solutions for a convolution configuration described by
+ *  input, output and convolution descriptors.
+ *
+ *  The returned solutions array is sorted in the order of decreasing performance. The returned
+ * solutions
+ * might be based
+ *  on heuristics and for more consistent performance results the user the advised to run the Find
+ * step.
+ *  The maximum length of the solutions array may be queried using
+ * miopenConvolutionForwardGetSolutionCount
+ *
+ * @param handle         MIOpen handle (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param xDesc          Tensor descriptor for input data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param yDesc          Tensor descriptor for output data tensor y (input)
+ * @param maxSolutionCount The size of the solutions array passed in below (input)
+ * @param solutionCount The size of the solutions array returned (output)
+ * @param solutions      A pointer to an array of type miopenConvSolution_t allocated by the user,
+ *                      filled in by MIOpen with applicable solutions. (output)
+ * @return               miopenStatus_t
+ *
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionForwardGetSolution(miopenHandle_t handle,
+                                    const miopenTensorDescriptor_t wDesc,
+                                    const miopenTensorDescriptor_t xDesc,
+                                    const miopenConvolutionDescriptor_t convDesc,
+                                    const miopenTensorDescriptor_t yDesc,
+                                    const size_t maxSolutionCount,
+                                    size_t* solutionCount,
+                                    miopenConvSolution_t* solutions);
+
+/*! @brief Returns the workspace size required for a particular solution id.
+ *
+ * This is an optional call for users who may have serialized the solution id and just need the
+ * workspace
+ * size for it. The same information is returned by the miopenConvolutionForwardGetSolution as part
+ * of the
+ * miopenConvSolution_t struct.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param xDesc          Tensor descriptor for input data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param yDesc          Tensor descriptor for output data tensor y (input)
+ * @param solution_id      ID of the solution for which workspace size is required (input)
+ * @param workSpaceSize  The size of the workspace (output)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionForwardGetSolutionWorkspaceSize(miopenHandle_t handle,
+                                                 const miopenTensorDescriptor_t wDesc,
+                                                 const miopenTensorDescriptor_t xDesc,
+                                                 const miopenConvolutionDescriptor_t convDesc,
+                                                 const miopenTensorDescriptor_t yDesc,
+                                                 const uint64_t solution_id,
+                                                 size_t* workSpaceSize);
+
+/*! @brief Compiles the solution provided by the user, this solution may be acquired by the
+ * miopenConvolutionForwardGetSolution API call above.
+ *   Compiling the solution ensures that the first API call to miopenConvolutionForwardImmediate
+ * does
+ * not cause a compile.
+ *
+ *   This is an optional step and may be skipped if a slow first miopenConvolutionForwardImmediate
+ * invocation is acceptable.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param xDesc          Tensor descriptor for input data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param yDesc          Tensor descriptor for output data tensor y (input)
+ * @param solution_id      ID of the solution to be compiled, as chosen by the user
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionForwardCompileSolution(miopenHandle_t handle,
+                                        const miopenTensorDescriptor_t wDesc,
+                                        const miopenTensorDescriptor_t xDesc,
+                                        const miopenConvolutionDescriptor_t convDesc,
+                                        const miopenTensorDescriptor_t yDesc,
+                                        const uint64_t solution_id);
+
+/*! @brief Executes the Forward convolution operation based on the provided solution ID.
+ *
+ * Supported datatypes are fp32, fp16, bfp16, and int8
+ *
+ * @param handle         MIOpen handle (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param w              Weights tensor w (input)
+ * @param xDesc          Tensor descriptor for input data tensor x (input)
+ * @param x              Data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param yDesc          Tensor descriptor for output data tensor y (input)
+ * @param y              Data tensor y (output)
+ * @param workSpace      Workspace tensor (input)
+ * @param workSpaceSize  Size of the memory in bytes pointed to by workSpace above
+ * @param solution_id      ID of the solution to be compiled, as chosen by the user
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionForwardImmediate(miopenHandle_t handle,
+                                  const miopenTensorDescriptor_t wDesc,
+                                  const void* w,
+                                  const miopenTensorDescriptor_t xDesc,
+                                  const void* x,
+                                  const miopenConvolutionDescriptor_t convDesc,
+                                  const miopenTensorDescriptor_t yDesc,
+                                  void* y,
+                                  void* workSpace,
+                                  size_t workSpaceSize,
+                                  const uint64_t solution_id);
+
+/*! @brief Query the maximum number of solutions applicable for the given input/output and weights
+ *  tensor descriptor for backward Convolution w-r-t Data.
+ *
+ *  This call returns the maximum number of applicable solutions for a the convolution problem, the
+ * number
+ *  returned may be used to allocate the memory required for the miopenConvAlgoPert2_t which is
+ * required
+ *  by miopenConvolutionBackwardDataGetSolution API calls.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc         Tensor descriptor for data input tensor dy (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param dxDesc         Tensor descriptor for output data tensor dx (input)
+ * @param solutionCount  Pointer to memory to return number of applicable solutions (output)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardDataGetSolutionCount(miopenHandle_t handle,
+                                              const miopenTensorDescriptor_t dyDesc,
+                                              const miopenTensorDescriptor_t wDesc,
+                                              const miopenConvolutionDescriptor_t convDesc,
+                                              const miopenTensorDescriptor_t dxDesc,
+                                              size_t* solutionCount);
+
+/*! @brief Query the applicable solutions for a backward convolution w-r-t data as described by
+ *  input, output and convolution descriptors.
+ *
+ *  The returned solutions array is sorted in the order of decreasing performance. The returned
+ * solutions
+ *  ns
+ * might be based
+ *  on heuristics and for more consistent performance results the user the advised to run the Find
+ * step.
+ *  The maximum length of the solutions array may be queried using
+ * miopenConvolutionBackwardDataGetSolutionCount
+ *
+ * @param handle           MIOpen handle (input)
+ * @param dyDesc           Tensor descriptor for data input tensor dy (input)
+ * @param wDesc            Tensor descriptor for weight tensor w (input)
+ * @param convDesc         Convolution layer descriptor (input)
+ * @param dxDesc           Tensor descriptor for output data tensor dx (input)
+ * @param maxSolutionCount The size of the solutions array passed in below (input)
+ * @param solutionCount    The size of the solutions array returned (output)
+ * @param solutions        A pointer to an array of type miopenConvSolution_t allocated by the user,
+ *                         filled in by MIOpen with applicable solutions. (output)
+ * @return                 miopenStatus_t
+ *
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardDataGetSolution(miopenHandle_t handle,
+                                         const miopenTensorDescriptor_t dyDesc,
+                                         const miopenTensorDescriptor_t wDesc,
+                                         const miopenConvolutionDescriptor_t convDesc,
+                                         const miopenTensorDescriptor_t dxDesc,
+                                         const size_t maxSolutionCount,
+                                         size_t* solutionCount,
+                                         miopenConvSolution_t* solutions);
+
+/*! @brief Returns the workspace size required for a particular solution id.
+ *
+ * This is an optional call for users who may have serialized the solution id and just need the
+ * workspace
+ * size for it. The same information is returned by the miopenConvolutionBackwardDataGetSolution as
+ * part of the
+ * miopenConvSolution_t struct.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc           Tensor descriptor for data input tensor dy (input)
+ * @param wDesc            Tensor descriptor for weight tensor w (input)
+ * @param convDesc         Convolution layer descriptor (input)
+ * @param dxDesc           Tensor descriptor for output data tensor dx (input)
+ * @param solution_id      ID of the solution for which workspace size is required (input)
+ * @param workSpaceSize  The size of the workspace (output)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardDataGetSolutionWorkspaceSize(miopenHandle_t handle,
+                                                      const miopenTensorDescriptor_t dyDesc,
+                                                      const miopenTensorDescriptor_t wDesc,
+                                                      const miopenConvolutionDescriptor_t convDesc,
+                                                      const miopenTensorDescriptor_t dxDesc,
+                                                      const uint64_t solution_id,
+                                                      size_t* workSpaceSize);
+
+/*! @brief Compiles the solution provided by the user, this solution may be acquired by the
+ * miopenConvolutionBackwardDataGetSolution API call above.
+ *   Compiling the solution ensures that the first API call to
+ * miopenConvolutionBackwardDataImmediate
+ * does not cause a compile.
+ *
+ *   This is an optional step and may be skipped if a slow first
+ * miopenConvolutionBackwardDataImmediate
+ * invocation is acceptable.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc         Tensor descriptor for data input tensor dy (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param dxDesc         Tensor descriptor for output data tensor dx (input)
+ * @param solution_id      ID of the solution to be compiled, as chosen by the user
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardDataCompileSolution(miopenHandle_t handle,
+                                             const miopenTensorDescriptor_t dyDesc,
+                                             const miopenTensorDescriptor_t wDesc,
+                                             const miopenConvolutionDescriptor_t convDesc,
+                                             const miopenTensorDescriptor_t dxDesc,
+                                             const uint64_t solution_id);
+
+/*! @brief Executes the Backward convolution w-r-t data  operation based on the provided solution
+ * ID.
+ *
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc         Tensor descriptor for data input tensor dy (input)
+ * @param dy             Data delta tensor dy (input)
+ * @param wDesc          Tensor descriptor for weight tensor w (input)
+ * @param w              Weights tensor w (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param dxDesc         Tensor descriptor for output data tensor dx (input)
+ * @param dx             Data delta tensor dx (output)
+ * @param workSpace      Workspace tensor (input)
+ * @param workSpaceSize  Size in bytes of the workspace memory pointed to by workSpace
+ * @param solution_id      ID of the solution to be compiled, as chosen by the user
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardDataImmediate(miopenHandle_t handle,
+                                       const miopenTensorDescriptor_t dyDesc,
+                                       const void* dy,
+                                       const miopenTensorDescriptor_t wDesc,
+                                       const void* w,
+                                       const miopenConvolutionDescriptor_t convDesc,
+                                       const miopenTensorDescriptor_t dxDesc,
+                                       void* dx,
+                                       void* workSpace,
+                                       size_t workSpaceSize,
+                                       const uint64_t solution_id);
+
+/*! @brief Query the maximum number of solutions applicable for the given input/output and weights
+ *  tensor descriptor for backward Convolution w-r-t Weights.
+ *
+ *  This call returns the maximum number of applicable solutions for a the convolution problem, the
+ * number
+ *  returned may be used to allocate the memory required for the miopenConvAlgoPert2_t which is
+ * required
+ *  by miopenConvolutionBackwardWeightsGetSolution API calls.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc         Tensor descriptor for data tensor dy (input)
+ * @param xDesc          Tensor descriptor for data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param dwDesc         Tensor descriptor for weight tensor dw (input)
+ * @param solutionCount  Pointer to memory to return number of applicable solutions (output)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardWeightsGetSolutionCount(miopenHandle_t handle,
+                                                 const miopenTensorDescriptor_t dyDesc,
+                                                 const miopenTensorDescriptor_t xDesc,
+                                                 const miopenConvolutionDescriptor_t convDesc,
+                                                 const miopenTensorDescriptor_t dwDesc,
+                                                 size_t* solutionCount);
+
+/*! @brief Query the applicable solutions for a backward convolution w-r-t weights as described by
+ *  input, output and convolution descriptors.
+ *
+ *  The returned solutions array is sorted in the order of decreasing performance. The returned
+ * solutions
+ * might be based
+ *  on heuristics and for more consistent performance results the user the advised to run the Find
+ * step.
+ *  The maximum length of the solutions array may be queried using
+ * miopenConvolutionBackwardWeightsGetSolutionCount
+ *
+ * @param handle           MIOpen handle (input)
+ * @param dyDesc           Tensor descriptor for data tensor dy (input)
+ * @param xDesc            Tensor descriptor for data tensor x (input)
+ * @param convDesc         Convolution layer descriptor (input)
+ * @param dwDesc           Tensor descriptor for weight tensor dw (input)
+ * @param maxSolutionCount The size of the solutions array passed in below (input)
+ * @param solutionCount    The size of the solutions array returned (output)
+ * @param solutions        A pointer to an array of type miopenConvSolution_t allocated by the user,
+ *                         filled in by MIOpen with applicable solutions. (output)
+ * @return                 miopenStatus_t
+ *
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardWeightsGetSolution(miopenHandle_t handle,
+                                            const miopenTensorDescriptor_t dyDesc,
+                                            const miopenTensorDescriptor_t xDesc,
+                                            const miopenConvolutionDescriptor_t convDesc,
+                                            const miopenTensorDescriptor_t dwDesc,
+                                            const size_t maxSolutionCount,
+                                            size_t* solutionCount,
+                                            miopenConvSolution_t* solutions);
+
+/*! @brief Returns the workspace size required for a particular solution id.
+ *
+ * This is an optional call for users who may have serialized the solution id and just need the
+ * workspace
+ * size for it. The same information is returned by the miopenConvolutionBackwardWeightsGetSolution
+ * as part of the
+ * miopenConvSolution_t struct.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc         Tensor descriptor for data tensor dy (input)
+ * @param xDesc          Tensor descriptor for data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param dwDesc         Tensor descriptor for weight tensor dw (input)
+ * @param solution_id      ID of the solution for which workspace size is required (input)
+ * @param workSpaceSize  The size of the workspace (output)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t miopenConvolutionBackwardWeightsGetSolutionWorkspaceSize(
+    miopenHandle_t handle,
+    const miopenTensorDescriptor_t dyDesc,
+    const miopenTensorDescriptor_t xDesc,
+    const miopenConvolutionDescriptor_t convDesc,
+    const miopenTensorDescriptor_t dwDesc,
+    const uint64_t solution_id,
+    size_t* workSpaceSize);
+
+/*! @brief Compiles the solution provided by the user, this solution may be acquired by the
+ * miopenConvolutionBackwardWeightsGetSolution API call above.
+ *   Compiling the solution ensures that the first API call to
+ * miopenConvolutionBackwardWeightsImmediate
+ * does not cause a compile.
+ *
+ *   This is an optional step and may be skipped if a slow first
+ * miopenConvolutionBackwardWeightsImmediate invocation is acceptable.
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc         Tensor descriptor for data tensor dy (input)
+ * @param xDesc          Tensor descriptor for data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param dwDesc         Tensor descriptor for weight tensor dw (input)
+ * @param solution_id      ID of the solution to be compiled, as chosen by the user
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardWeightsCompileSolution(miopenHandle_t handle,
+                                                const miopenTensorDescriptor_t dyDesc,
+                                                const miopenTensorDescriptor_t xDesc,
+                                                const miopenConvolutionDescriptor_t convDesc,
+                                                const miopenTensorDescriptor_t dwDesc,
+                                                const uint64_t solution_id);
+
+/*! @brief Executes the Backward convolution w-r-t weights  operation based on the provided solution
+ * ID.
+ *
+ *
+ * @param handle         MIOpen handle (input)
+ * @param dyDesc         Tensor descriptor for data tensor dy (input)
+ * @param dy             Data delta tensor dy (input)
+ * @param xDesc          Tensor descriptor for data tensor x (input)
+ * @param x              Data tensor x (input)
+ * @param convDesc       Convolution layer descriptor (input)
+ * @param dwDesc         Tensor descriptor for weight tensor dw (input)
+ * @param dw             Weights delta tensor dw (output)
+ * @param workSpace      Workspace tensor (input)
+ * @param workSpaceSize  Size in bytes of the memory passed in, pointed to by workSpace pointer
+ * above
+ * @param solution_id      ID of the solution to be compiled, as chosen by the user
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenConvolutionBackwardWeightsImmediate(miopenHandle_t handle,
+                                          const miopenTensorDescriptor_t dyDesc,
+                                          const void* dy,
+                                          const miopenTensorDescriptor_t xDesc,
+                                          const void* x,
+                                          const miopenConvolutionDescriptor_t convDesc,
+                                          const miopenTensorDescriptor_t dwDesc,
+                                          void* dw,
+                                          void* workSpace,
+                                          size_t workSpaceSize,
+                                          const uint64_t solution_id);
 
 /*! @brief Query the workspace size required for a forward convolution layer
  *
@@ -946,7 +1539,7 @@ miopenFindConvolutionBackwardDataAlgorithm(miopenHandle_t handle,
                                            const void* w,
                                            const miopenConvolutionDescriptor_t convDesc,
                                            const miopenTensorDescriptor_t dxDesc,
-                                           const void* dx,
+                                           void* dx,
                                            const int requestAlgoCount,
                                            int* returnedAlgoCount,
                                            miopenConvAlgoPerf_t* perfResults,
@@ -1155,9 +1748,30 @@ MIOPEN_EXPORT miopenStatus_t miopenConvolutionBackwardBias(miopenHandle_t handle
  */
 MIOPEN_EXPORT miopenStatus_t miopenCreatePoolingDescriptor(miopenPoolingDescriptor_t* poolDesc);
 
-/*! @brief Sets a 2-D pooling layer descriptor details
+/*! @brief Set index data type for pooling layer. The default indexing type is uint8_t.
+ * Users can set the index type to any of the miopenIndexType_t sizes; 8, 16, 32, or 64 bit
+ * unsigned integers.
  *
- * Sets the window shape, padding, and stride for a previously created 2-D pooling descriptor
+ * @param poolDesc     Pointer to a pooling layer descriptor (input)
+ * @param index_type   Index type (input)
+ * @return             miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t miopenSetPoolingIndexType(miopenPoolingDescriptor_t poolDesc,
+                                                       miopenIndexType_t index_type);
+
+/*! @brief Get the index data type for pooling layer. The index type to any of the
+ * miopenIndexType_t sizes; 8, 16, 32, or 64 bit unsigned integers.
+ *
+ * @param poolDesc     Pointer to a pooling layer descriptor (input)
+ * @param index_type   Index type (output)
+ * @return             miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t miopenGetPoolingIndexType(miopenPoolingDescriptor_t poolDesc,
+                                                       miopenIndexType_t* index_type);
+
+/*! @brief Sets a 2-D pooling layer descriptor details.
+ *
+ * Sets the window shape, padding, and stride for a previously created 2-D pooling descriptor.
  *
  * @param poolDesc       Pointer to a pooling layer descriptor (output)
  * @param mode           Pooling mode enum (input)
@@ -1165,8 +1779,8 @@ MIOPEN_EXPORT miopenStatus_t miopenCreatePoolingDescriptor(miopenPoolingDescript
  * @param windowWidth    Input window width dimension (input)
  * @param pad_h          Number of elements to pad height (input)
  * @param pad_w          Number of elements to pad width (input)
- * @param u              Vertical stride (input)
- * @param v              Horizontal stride (input)
+ * @param stride_h       Vertical stride (input)
+ * @param stride_w       Horizontal stride (input)
  * @return               miopenStatus_t
  */
 MIOPEN_EXPORT miopenStatus_t miopenSet2dPoolingDescriptor(miopenPoolingDescriptor_t poolDesc,
@@ -1175,12 +1789,12 @@ MIOPEN_EXPORT miopenStatus_t miopenSet2dPoolingDescriptor(miopenPoolingDescripto
                                                           int windowWidth,
                                                           int pad_h,
                                                           int pad_w,
-                                                          int u,
-                                                          int v);
+                                                          int stride_h,
+                                                          int stride_w);
 
 /*! @brief Gets a 2-D pooling layer descriptor details
  *
- * Gets the window shape, padding, and stride for a previously created 2-D pooling descriptor
+ * Gets the window shape, padding, and stride for a previously created 2-D pooling descriptor.
  *
  * @param poolDesc       Pointer to a pooling layer descriptor (input)
  * @param mode           Pooling mode enum (output)
@@ -1188,8 +1802,8 @@ MIOPEN_EXPORT miopenStatus_t miopenSet2dPoolingDescriptor(miopenPoolingDescripto
  * @param windowWidth    Input window width dimension (output)
  * @param pad_h          Number of elements to pad height (output)
  * @param pad_w          Number of elements to pad width (output)
- * @param u              Vertical stride (output)
- * @param v              Horizontal stride (output)
+ * @param stride_h       Vertical stride (output)
+ * @param stride_w       Horizontal stride (output)
  * @return               miopenStatus_t
  */
 MIOPEN_EXPORT miopenStatus_t miopenGet2dPoolingDescriptor(const miopenPoolingDescriptor_t poolDesc,
@@ -1198,8 +1812,8 @@ MIOPEN_EXPORT miopenStatus_t miopenGet2dPoolingDescriptor(const miopenPoolingDes
                                                           int* windowWidth,
                                                           int* pad_h,
                                                           int* pad_w,
-                                                          int* u,
-                                                          int* v);
+                                                          int* stride_h,
+                                                          int* stride_w);
 
 /*! @brief Gets the shape of the output tensor for 2-D pooling
  *
@@ -1226,7 +1840,10 @@ miopenGetPoolingForwardOutputDim(const miopenPoolingDescriptor_t poolDesc,
 /*! @brief Get the amount of GPU memory required for pooling
  *
  * Retrieves the amount of workspace in bytes require for pooling. This call is required to
- * determine the amount of GPU memory needed for the backwards pooling algorithms.
+ * determine the amount of GPU memory needed for the backwards pooling algorithms. For max-
+ * pooling, an assumption is that index data type is uint8_t, therefore the returned
+ * workspace size will be based on this assumption even if the user sets the index type with
+ * miopenSetPoolingIndexType().
  *
  * @param yDesc          Descriptor for pooling layer (input)
  * @param workSpaceSize  Pointer to workSpaceSize (output)
@@ -1234,6 +1851,23 @@ miopenGetPoolingForwardOutputDim(const miopenPoolingDescriptor_t poolDesc,
  */
 MIOPEN_EXPORT miopenStatus_t miopenPoolingGetWorkSpaceSize(const miopenTensorDescriptor_t yDesc,
                                                            size_t* workSpaceSize);
+
+/*! @brief Get the amount of GPU memory required for pooling
+ *
+ * Retrieves the amount of workspace in bytes require for pooling. This call is required to
+ * determine the amount of GPU memory needed for the backwards pooling algorithms. For max-
+ * pooling, there is no assumption on index data type. As the user can set the index datatype
+ * size using miopenSetPoolingIndexType().
+ *
+ * @param poolDesc       Pointer to a pooling layer descriptor (input)
+ * @param yDesc          Descriptor for pooling layer (input)
+ * @param workSpaceSize  Pointer to workSpaceSize (output)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t
+miopenPoolingGetWorkSpaceSizeV2(const miopenPoolingDescriptor_t poolDesc,
+                                const miopenTensorDescriptor_t yDesc,
+                                size_t* workSpaceSize);
 
 /*! @brief Execute a forward pooling layer
  *
@@ -1744,7 +2378,7 @@ miopenDestroyActivationDescriptor(miopenActivationDescriptor_t activDesc);
  */
 /*! @brief Execute a softmax forward layer
  *
- * MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
+ * This API only implements the SOFTMAX_MODE_CHANNEL in SOFTMAX_ACCURATE path.
  *
  * @param handle         MIOpen handle (input)
  * @param alpha          Floating point scaling factor, allocated on the host (input)
@@ -1765,7 +2399,7 @@ MIOPEN_EXPORT miopenStatus_t miopenSoftmaxForward(miopenHandle_t handle,
 
 /*! @brief Execute a softmax backwards layer
  *
- * MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
+ * This API only implements the SOFTMAX_MODE_CHANNEL in SOFTMAX_ACCURATE path.
  *
  * @param handle         MIOpen handle (input)
  * @param alpha          Floating point scaling factor, allocated on the host (input)
@@ -1787,6 +2421,56 @@ MIOPEN_EXPORT miopenStatus_t miopenSoftmaxBackward(miopenHandle_t handle,
                                                    const void* beta,
                                                    const miopenTensorDescriptor_t dxDesc,
                                                    void* dx);
+
+/*! @brief Execute a softmax forward layer with expanded modes and algorithms
+ *
+ * @param handle         MIOpen handle (input)
+ * @param alpha          Floating point scaling factor, allocated on the host (input)
+ * @param xDesc          Tensor descriptor for data input tensor x (input)
+ * @param x              Data tensor x (input)
+ * @param beta           Floating point shift factor, allocated on the host (input)
+ * @param yDesc          Tensor descriptor for output data tensor y (input)
+ * @param y              Data tensor y (output)
+ * @param algorithm      Softmax implementation algorithm (input)
+ * @param mode           Softmax mode (input)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t miopenSoftmaxForward_V2(miopenHandle_t handle,
+                                                     const void* alpha,
+                                                     const miopenTensorDescriptor_t xDesc,
+                                                     const void* x,
+                                                     const void* beta,
+                                                     const miopenTensorDescriptor_t yDesc,
+                                                     void* y,
+                                                     miopenSoftmaxAlgorithm_t algorithm,
+                                                     miopenSoftmaxMode_t mode);
+
+/*! @brief Execute a softmax backwards layer with expanded modes and algorithms
+ *
+ * @param handle         MIOpen handle (input)
+ * @param alpha          Floating point scaling factor, allocated on the host (input)
+ * @param yDesc          Tensor descriptor for input data tensor y (input)
+ * @param y              Data tensor y (input)
+ * @param dyDesc         Tensor descriptor for input data tensor dy (input)
+ * @param dy             Data delta tensor dy (input)
+ * @param beta           Floating point shift factor, allocated on the host (input)
+ * @param dxDesc         Tensor descriptor for data output tensor dx (input)
+ * @param dx             Output data delta tensor dx (output)
+ * @param algorithm      Softmax implementation algorithm (input)
+ * @param mode           Softmax mode (input)
+ * @return               miopenStatus_t
+ */
+MIOPEN_EXPORT miopenStatus_t miopenSoftmaxBackward_V2(miopenHandle_t handle,
+                                                      const void* alpha,
+                                                      const miopenTensorDescriptor_t yDesc,
+                                                      const void* y,
+                                                      const miopenTensorDescriptor_t dyDesc,
+                                                      const void* dy,
+                                                      const void* beta,
+                                                      const miopenTensorDescriptor_t dxDesc,
+                                                      void* dx,
+                                                      miopenSoftmaxAlgorithm_t algorithm,
+                                                      miopenSoftmaxMode_t mode);
 
 /** @} */
 // CLOSEOUT SOFTMAX DOXYGEN GROUP
@@ -3196,6 +3880,124 @@ MIOPEN_EXPORT miopenStatus_t miopenRNNForwardInference(miopenHandle_t handle,
 
 /** @} */
 // CLOSEOUT RNN DOXYGEN GROUP
+
+/** @addtogroup LossFunction
+*
+*  @{
+*/
+
+/*! @enum miopenCTCLossAlgo_t
+ * Algorithms available to execute the CTC loss operation
+*/
+typedef enum {
+    MIOPEN_CTC_LOSS_ALGO_DETERMINISTIC = 0, /*!< Results are guaranteed to be reproducible */
+} miopenCTCLossAlgo_t;
+
+/*! @brief Create a CTC loss function Descriptor
+ *
+ * API for creating an uninitialized CTC loss function descriptor.
+ * @param ctcLossDesc  Pointer to the CTC loss function descriptor type (output)
+ * @return             miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t miopenCreateCTCLossDescriptor(miopenCTCLossDescriptor_t* ctcLossDesc);
+
+/*! @brief Retrieves a CTC loss function descriptor's details
+ *
+ * @param ctcLossDesc          CTC loss function descriptor (input)
+ * @param dataType             Data type used in this CTC loss operation, only fp32 currently
+ * supported (output)
+ * @param blank_label_id       User defined index for blank label (output)
+ * @param apply_softmax_layer  Boolean to toggle input layer property (output)
+ * @return                     miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t miopenGetCTCLossDescriptor(miopenCTCLossDescriptor_t ctcLossDesc,
+                                                        miopenDataType_t* dataType,
+                                                        int* blank_label_id,
+                                                        bool* apply_softmax_layer);
+
+/*! @brief Destroys a CTC loss function descriptor object
+ *
+ * @param ctcLossDesc  CTC loss function descriptor type (input)
+ * @return             miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t miopenDestroyCTCLossDescriptor(miopenCTCLossDescriptor_t ctcLossDesc);
+
+/*! @brief Set the details of a CTC loss function descriptor
+ *
+ * @param ctcLossDesc          CTC loss function descriptor type (input)
+ * @param dataType             Data type used in this CTC loss operation, only fp32 currently
+ * supported (input)
+ * @param blank_label_id       User defined index for blank label, default 0 (input)
+ * @param apply_softmax_layer  Boolean to toggle input layer property (input)
+ * @return             miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t miopenSetCTCLossDescriptor(miopenCTCLossDescriptor_t ctcLossDesc,
+                                                        miopenDataType_t dataType,
+                                                        const int blank_label_id,
+                                                        bool apply_softmax_layer);
+
+/*! @brief Query the amount of memory required to execute miopenCTCLoss
+ *
+ * This function calculates the amount of memory required to run the CTC loss function given a CTC
+ * loss function descriptor with the specified algorithm.
+ * @param handle         MIOpen handle (input)
+ * @param probsDesc      Tensor descriptor for probabilities (input)
+ * @param gradientsDesc  Tensor descriptor for gradients (input)
+ * @param labels         Pointer to the flattened labels list (input)
+ * @param labelLengths   Pointer to the lengths list for "labels" (input)
+ * @param inputLengths   Pointer to the list of the time steps in each batch (input)
+ * @param algo           CTC loss algorithm selected (input)
+ * @param ctcLossDesc    CTC loss function descriptor type (input)
+ * @param workSpaceSize  Number of bytes of workspace required for CTC loss operation with selected
+ * algorithm (output)
+ * @return               miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t
+miopenGetCTCLossWorkspaceSize(miopenHandle_t handle,
+                              const miopenTensorDescriptor_t probsDesc,
+                              const miopenTensorDescriptor_t gradientsDesc,
+                              const int* labels,
+                              const int* labelLengths,
+                              const int* inputLengths,
+                              miopenCTCLossAlgo_t algo,
+                              const miopenCTCLossDescriptor_t ctcLossDesc,
+                              size_t* workSpaceSize);
+
+/*! @brief Execute forward inference for CTCLoss layer
+ *
+ * Interface for executing the forward inference pass on a CTCLoss.
+ * @param handle         MIOpen handle (input)
+ * @param probsDesc      Tensor descriptor for probabilities (input)
+ * @param probs          Pointer to the probabilities tensor (input)
+ * @param labels         Pointer to the flattened labels list (input)
+ * @param labelLengths   Pointer to the lengths list for "labels" (input)
+ * @param inputLengths   Pointer to the list of the time steps in each batch (input)
+ * @param losses         Pointer to the computed losses of CTC (Output)
+ * @param gradientsDesc  Tensor descriptor for gradients (input)
+ * @param gradients      Pointer to the computed gradients of CTC (Output)
+ * @param algo           CTC loss algorithm selected (input)
+ * @param ctcLossDesc    CTC loss function descriptor type (input)
+ * @param workSpace      Pointer to memory allocated for execute CTC loss operation (input)
+ * @param workSpaceSize  Number of bytes of workspace required for CTC loss operation with selected
+ * algorithm (input)
+ * @return               miopenStatus_t
+*/
+MIOPEN_EXPORT miopenStatus_t miopenCTCLoss(miopenHandle_t handle,
+                                           const miopenTensorDescriptor_t probsDesc,
+                                           const void* probs,
+                                           const int* labels,
+                                           const int* labelLengths,
+                                           const int* inputLengths,
+                                           void* losses,
+                                           const miopenTensorDescriptor_t gradientsDesc,
+                                           void* gradients,
+                                           miopenCTCLossAlgo_t algo,
+                                           const miopenCTCLossDescriptor_t ctcLossDesc,
+                                           void* workSpace,
+                                           size_t workSpaceSize);
+
+/** @} */
+// CLOSEOUT LossFunction DOXYGEN GROUP
 
 #ifdef __cplusplus
 }

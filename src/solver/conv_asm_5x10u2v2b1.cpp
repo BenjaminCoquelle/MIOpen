@@ -34,14 +34,9 @@ namespace solver {
 bool ConvAsm5x10u2v2b1::IsApplicable(const ConvolutionContext& params) const
 {
     if(!params.use_asm_kernels)
-    {
         return false;
-    }
-    if(!(params.rmv == rocm_meta_version::V1 || params.rmv == rocm_meta_version::V3 ||
-         params.rmv == rocm_meta_version::AMDHSA_1_0))
-    {
+    if(params.rmv != rocm_meta_version::AMDHSA_1_0)
         return false;
-    }
 
     const std::string name = params.GetStream().GetDeviceName();
     const bool device_is_gfx8_9_no_xnack =
@@ -65,21 +60,23 @@ bool ConvAsm5x10u2v2b1::IsApplicable(const ConvolutionContext& params) const
     const int max_out_height = 131077 - 1;
 
     // clang-format off
-    return params.pad0 == 0                     // -q   pad_w   fixed
-        && params.pad1 == 0                     // -p   pad_h   fixed
-        && params.kernel_stride0 == 2           // -u   inp_u   fixed
-        && params.kernel_stride1 == 2           // -v   inp_v   fixed
-        && params.kernel_size0 == 10            // -x   wei_w   fixed
-        && params.kernel_size1 == 5             // -y   wei_h   fixed
-        && params.n_outputs % 16 == 0           // -c   wei_c   no upper limit
-        && params.n_inputs >= 16                // -k   wei_k   no upper limit
-        && params.out_width >= min_out_width    // -W   inp_w
+    return params.pad_w == 0                     // -q   pad_w   fixed
+        && params.pad_h == 0                     // -p   pad_h   fixed
+        && params.kernel_stride_w == 2             // -v   inp_v   fixed
+        && params.kernel_stride_h == 2             // -u   inp_u   fixed
+        && params.kernel_size_w == 10            // -x   wei_w   fixed
+        && params.kernel_size_h == 5             // -y   wei_h   fixed
+        && params.kernel_dilation_w == 1
+        && params.kernel_dilation_h == 1
+        && params.n_outputs % 16 == 0            // -c   wei_c   no upper limit
+        && params.n_inputs >= 16                 // -k   wei_k   no upper limit
+        && params.out_width >= min_out_width     // -W   inp_w
         && params.out_width <= max_out_width
-        && params.out_height >= min_out_height  // -H   inp_h
+        && params.out_height >= min_out_height   // -H   inp_h
         && params.out_height <= max_out_height
-        && params.float_size == 32
-        && params.mode.IsNormal()
-        && params.out_layout == "NCHW";         // hardcoded
+        && params.IsFp32()
+        && params.group_counts == 1
+        && params.out_layout == "NCHW";          // hardcoded
         // && (isForwardDirection() ? _weights_layout == "KCHW" : _weights_layout == "CKHW" )
     // clang-format on
 }
@@ -92,10 +89,7 @@ ConvSolution ConvAsm5x10u2v2b1::GetSolution(const ConvolutionContext& params) co
     GenerateClangDefsym(options, "inp_w", params.out_width);
     GenerateClangDefsym(options, "wei_c", params.n_outputs);
     GenerateClangDefsym(options, "wei_k", params.n_inputs);
-    GenerateClangDefsym(
-        options,
-        "ROCM_METADATA_VERSION",
-        (params.rmv == rocm_meta_version::V1) ? 1 : (params.rmv == rocm_meta_version::V3) ? 3 : 4);
+    GenerateClangDefsym(options, "ROCM_METADATA_VERSION", 4);
 
     KernelInfo constr_params;
     constr_params.comp_options = options.str();
