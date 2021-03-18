@@ -99,6 +99,25 @@ An example cmake step can be:
 CXX=/opt/rocm/hcc/bin/hcc cmake -DMIOPEN_BACKEND=HIP -DCMAKE_PREFIX_PATH="/opt/rocm/hcc;/opt/rocm/hip" ..
 ```
 
+###  For RIF, run
+1. Download boost 1.71 https://www.boost.org/users/history/version_1_71_0.html
+2. Unpack and install
+```
+ tar xf boost_1_71_0.tar.gz
+ cd boost_1_71_0
+ ./bootstrap.sh
+ sudo ./b2 link=static -a --with-system --with-filsystem install
+```
+3. Build MIOpen
+```
+ mkdir build
+ cd build
+ cmake .. -DRIF_BUILD=1 -DMIOPEN_BACKEND=OpenCL
+ make -j
+```
+
+
+
 ### Setting Up Locations
 
 By default the install location is set to '/opt/rocm', this can be set by using `CMAKE_INSTALL_PREFIX`:
