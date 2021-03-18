@@ -471,12 +471,8 @@ if(WIN32 AND NOT MSVC)
 endif()
 
 target_include_directories(MIOpen SYSTEM PUBLIC $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>)
-target_internal_library(MIOpen
-    optimized ${Boost_FILESYSTEM_LIBRARY_RELEASE}
-    optimized ${Boost_SYSTEM_LIBRARY_RELEASE}
-    debug ${Boost_FILESYSTEM_LIBRARY_DEBUG}
-    debug ${Boost_SYSTEM_LIBRARY_DEBUG}
-)
+target_internal_library(MIOpen ${Boost_LIBRARIES})
+
 if(NOT WIN32 AND NOT APPLE)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/lib.def "
 MIOPEN_${MIOPEN_BACKEND}_1
