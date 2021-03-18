@@ -533,12 +533,8 @@ add_library( MIOpen
     $<TARGET_OBJECTS:sqlite_memvfs>
     )
 
-<<<<<<< HEAD
-rocm_set_soversion(MIOpen ${MIOpen_SOVERSION})
-=======
 set_target_properties(MIOpen PROPERTIES VERSION ${MIOpen_VERSION_MAJOR}.${MIOpen_VERSION_MINOR}.${MIOpen_VERSION_PATCH})
 set_target_properties(MIOpen PROPERTIES SOVERSION ${MIOpen_VERSION_MAJOR})
->>>>>>> fdbc0b9f7... Update soname
 
 clang_tidy_check(MIOpen)
 
@@ -618,10 +614,9 @@ if(WIN32 AND NOT MSVC)
     target_link_libraries(MIOpen PUBLIC -Wl,--whole-archive -lgcc -lstdc++-6 -Wl,--no-whole-archive -Wl,--allow-multiple-definition)
 endif()
 
-target_internal_library(MIOpen
-    Boost::filesystem
-)
-list(APPEND PACKAGE_STATIC_DEPENDS PACKAGE Boost COMPONENTS filesystem)
+target_include_directories(MIOpen SYSTEM PUBLIC $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>)
+target_internal_library(MIOpen ${Boost_LIBRARIES})
+
 if(NOT WIN32 AND NOT APPLE)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/lib.def "
 MIOPEN_${MIOPEN_BACKEND}_1
