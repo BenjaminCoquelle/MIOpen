@@ -35,6 +35,7 @@
 #include <miopen/logger.hpp>
 #include <miopen/handle.hpp>
 #include <miopen/solver.hpp>
+#include <miopen/stringutils.hpp>
 #include <miopen/generic_search.hpp>
 
 #define WORKAROUND_ISSUE_532 1 // ConvAsmBwdWrW3x3 has precision issues with some PerformanceConfigs

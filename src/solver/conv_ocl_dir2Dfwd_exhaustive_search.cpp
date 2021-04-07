@@ -36,14 +36,6 @@
 
 #include <half.hpp>
 
-#ifdef max
-#undef max
-#endif
-
-#ifdef min
-#undef min
-#endif
-
 namespace miopen {
 namespace solver {
 

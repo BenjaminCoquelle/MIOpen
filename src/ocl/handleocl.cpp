@@ -259,8 +259,7 @@ Handle::Handle() : impl(new HandleImpl())
     MIOPEN_LOG_NQI(*this);
 }
 
-Handle::Handle(Handle&&) noexcept = default;
-Handle::~Handle()                 = default;
+Handle::~Handle() = default;
 
 void Handle::SetStream(miopenAcceleratorQueue_t streamID) const
 {
@@ -422,7 +421,7 @@ Program Handle::LoadProgram(const std::string& program_name,
     else
     {
         std::vector<char> BinProgram;
-        miopen::LoadBinaryFile(cache_file, BinProgram);
+        miopen::LoadBinaryFile(hsaco.string(), BinProgram);
         return LoadBinaryProgram(miopen::GetContext(this->GetStream()),
                                  miopen::GetDevice(this->GetStream()),
 #if MIOPEN_ENABLE_SQLITE_KERN_CACHE

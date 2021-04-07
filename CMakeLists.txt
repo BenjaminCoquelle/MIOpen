@@ -83,7 +83,7 @@ include(CheckCXXCompilerFlag)
 set(MIOPEN_ENABLE_SQLITE On CACHE BOOL "")
 # Use SQLITE for compiled kernels, when turned off this will use raw files
 set(MIOPEN_ENABLE_SQLITE_KERN_CACHE On CACHE BOOL "")
-if(MIOPEN_ENABLE_SQLITE)
+if(MIOPEN_ENABLE_SQLITE AND NOT RIF_BUILD)
     # MIOpen now depends on SQLite as well
     find_package(PkgConfig)
     pkg_check_modules(SQLITE3 REQUIRED sqlite3)
@@ -225,11 +225,12 @@ if( MIOPEN_BACKEND STREQUAL "OpenCL")
     endif()
 endif()
 
-
-# HIP is always required
-find_package(hip REQUIRED PATHS /opt/rocm)
-message(STATUS "Build with HIP ${hip_VERSION}")
-target_flags(HIP_COMPILER_FLAGS hip::device)
+if(NOT RIF_BUILD)
+    # HIP is always required
+    find_package(hip REQUIRED PATHS /opt/rocm)
+    message(STATUS "Build with HIP ${hip_VERSION}")
+    target_flags(HIP_COMPILER_FLAGS hip::device)
+endif()
 # Remove cuda arch flags
 string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 string(REGEX REPLACE --offload-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
@@ -237,9 +238,15 @@ string(REGEX REPLACE --offload-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPI
 # Override HIP version in config.h, if necessary.
 # The variables set by find_package() can't be overwritten,
 # therefore let's use intermediate variables.
-set(MIOPEN_hip_VERSION_MAJOR "${hip_VERSION_MAJOR}")
-set(MIOPEN_hip_VERSION_MINOR "${hip_VERSION_MINOR}")
-set(MIOPEN_hip_VERSION_PATCH "${hip_VERSION_PATCH}")
+if(NOT RIF_BUILD)
+    set(MIOPEN_hip_VERSION_MAJOR "${hip_VERSION_MAJOR}")
+    set(MIOPEN_hip_VERSION_MINOR "${hip_VERSION_MINOR}")
+    set(MIOPEN_hip_VERSION_PATCH "${hip_VERSION_PATCH}")
+else()
+    set(MIOPEN_hip_VERSION_MAJOR 0)
+    set(MIOPEN_hip_VERSION_MINOR 0)
+    set(MIOPEN_hip_VERSION_PATCH 0)
+endif()
 if( DEFINED MIOPEN_OVERRIDE_HIP_VERSION_MAJOR )
     set(MIOPEN_hip_VERSION_MAJOR "${MIOPEN_OVERRIDE_HIP_VERSION_MAJOR}")
     message(STATUS "MIOPEN_hip_VERSION_MAJOR overriden with ${MIOPEN_OVERRIDE_HIP_VERSION_MAJOR}")
@@ -331,22 +338,23 @@ else()
     # look for and register extractkernel
     message(STATUS "clang-offload-bundler not found")
 
-    find_program(EXTRACTKERNEL_BIN extractkernel
-        PATH_SUFFIXES bin
-        PATHS
-            /opt/rocm/hip
-            /opt/rocm/hcc
-            /opt/rocm
-	        ${CMAKE_INSTALL_PREFIX}/hip
-            ${CMAKE_INSTALL_PREFIX}/hcc
-            ${CMAKE_INSTALL_PREFIX}
-
-    )
-    if(EXTRACTKERNEL_BIN)
-        message(STATUS "extractkernel found: ${EXTRACTKERNEL_BIN}")
-        set(EXTRACTKERNEL_BIN "${EXTRACTKERNEL_BIN}")
-    else()
-        message(FATAL_ERROR "extractkernel not found")
+    if(NOT WIN32 AND NOT APPLE)
+        find_program(EXTRACTKERNEL_BIN extractkernel
+            PATH_SUFFIXES bin
+            PATHS
+                /opt/rocm/hip
+                /opt/rocm/hcc
+                /opt/rocm
+                ${CMAKE_INSTALL_PREFIX}/hip
+                ${CMAKE_INSTALL_PREFIX}/hcc
+                ${CMAKE_INSTALL_PREFIX}
+        )
+        if(EXTRACTKERNEL_BIN)
+            message(STATUS "extractkernel found: ${EXTRACTKERNEL_BIN}")
+            set(EXTRACTKERNEL_BIN "${EXTRACTKERNEL_BIN}")
+        else()
+            message(FATAL_ERROR "extractkernel not found")
+        endif()
     endif()
 endif()
 

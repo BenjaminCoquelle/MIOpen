@@ -59,7 +59,7 @@ struct AnyInvokeParams;
 
 namespace solver {
 /// \todo Move wave_size into abstraction wich represent GPU information
-const int wave_size = 64;
+const size_t wave_size = 64;
 template <class Solver>
 std::string ComputeSolverDbId(Solver)
 {

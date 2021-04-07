@@ -26,6 +26,7 @@
 #include <cmath>
 #include <miopen/kernel_cache.hpp>
 #include <miopen/util.hpp>
+#include <miopen/mlo_utils.hpp>
 #include <miopen/logger.hpp>
 #include <miopen/float_equal.hpp>
 #include <miopen/datatype.hpp>

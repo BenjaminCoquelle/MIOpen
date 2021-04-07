@@ -46,6 +46,7 @@
 #include <miopen/visit_float.hpp>
 #include <miopen/datatype.hpp>
 #include <miopen/any_solver.hpp>
+#include <miopen/mlo_utils.hpp>
 #include <miopen/conv/tensors.hpp>
 #include <miopen/conv/compiled_in_parameters.hpp>
 #include <miopen/conv/data_invoke_params.hpp>

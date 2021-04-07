@@ -120,7 +120,6 @@ inline unsigned long int Value(T, unsigned long int fallback = 0)
 }
 } // namespace miopen
 
-MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_AMD_ROCM_PRECOMPILED_BINARIES)
 #if defined(WIN32)
 MIOPEN_DECLARE_ENV_VAR(USERPROFILE)
 MIOPEN_DECLARE_ENV_VAR(LOCALAPPDATA)

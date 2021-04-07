@@ -25,6 +25,7 @@
  *******************************************************************************/
 #include <miopen/kernel_cache.hpp>
 #include <miopen/mlo_internal.hpp>
+#include <miopen/mlo_utils.hpp>
 #include <miopen/pooling.hpp>
 #include <miopen/float_equal.hpp>
 #include <miopen/check_numerics.hpp>

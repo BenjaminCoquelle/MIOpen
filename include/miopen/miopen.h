@@ -31,6 +31,7 @@
 #pragma clang diagnostic ignored "-Wextern-c-compat"
 #endif
 
+#include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <miopen/config.h>

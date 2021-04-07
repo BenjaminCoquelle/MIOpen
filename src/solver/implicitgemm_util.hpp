@@ -5,6 +5,7 @@
 #include <miopen/env.hpp>
 #include <miopen/hip_build_utils.hpp>
 #include <miopen/mlo_internal.hpp>
+#include <miopen/stringutils.hpp>
 
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_IMPLICIT_GEMM_NON_XDLOPS_INLINE_ASM)
 MIOPEN_DECLARE_ENV_VAR(MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_XDLOPS)

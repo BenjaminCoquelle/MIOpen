@@ -72,7 +72,7 @@ struct Handle : miopenHandle
 
     Handle();
     Handle(miopenAcceleratorQueue_t stream);
-    Handle(Handle&&) noexcept;
+    Handle(Handle&&) noexcept = default;
     ~Handle();
 
     miopenAcceleratorQueue_t GetStream() const;

@@ -31,6 +31,7 @@
 #include <miopen/datatype.hpp>
 #include <miopen/visit_float.hpp>
 #include <miopen/util.hpp>
+#include <miopen/mlo_utils.hpp>
 #include <algorithm>
 #include <cassert>
 #include <numeric>

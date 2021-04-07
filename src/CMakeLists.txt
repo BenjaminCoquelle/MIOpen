@@ -27,7 +27,9 @@
 cmake_policy(SET CMP0057 NEW)
 
 include (GenerateExportHeader)
-add_subdirectory(sqlite)
+if(MIOPEN_ENABLE_SQLITE)
+    add_subdirectory(sqlite)
+endif()
 
 # Truncation rounding or (default) rounding to nearest even (RNE) is enabled.
 # This switch controls two related but different aspects of MIOpen behavior
@@ -530,8 +532,11 @@ endif()
 # build library
 add_library( MIOpen
     ${MIOpen_Source}
-    $<TARGET_OBJECTS:sqlite_memvfs>
     )
+
+if(MIOPEN_ENABLE_SQLITE)
+    target_link_libraries(${TARGET} PRIVATE $<TARGET_OBJECTS:sqlite_memvfs>)
+endif()
 
 set_target_properties(MIOpen PROPERTIES VERSION ${MIOpen_VERSION_MAJOR}.${MIOpen_VERSION_MINOR}.${MIOpen_VERSION_PATCH})
 set_target_properties(MIOpen PROPERTIES SOVERSION ${MIOpen_VERSION_MAJOR})

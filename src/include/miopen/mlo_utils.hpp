@@ -56,18 +56,16 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <fstream>
 #include <cstdio>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #ifdef _WIN32
 #include <io.h>
 #include <windows.h>
 // #include <BaseTsd.h>
 #include <direct.h>
-#define snprintf _snprintf
-#define vsnprintf _vsnprintf
-#define strcasecmp _stricmp
-#define strncasecmp _strnicmp
-//#ifndef getcwd
-// #define getcwd _getcwd
-//#endif
+
 typedef unsigned int uint;
 
 #ifndef getcwd

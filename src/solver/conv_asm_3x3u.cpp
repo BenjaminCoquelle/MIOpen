@@ -32,6 +32,7 @@
 #include <miopen/generic_search.hpp>
 #include <miopen/kernel_build_params.hpp>
 #include <miopen/sequences.hpp>
+#include <miopen/stringutils.hpp>
 #include <miopen/conv/invokers/gen_x_w_y_pad.hpp>
 
 #include <cstdint>

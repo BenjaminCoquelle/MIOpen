@@ -33,6 +33,7 @@
 #include <miopen/kernel_cache.hpp>
 #include <miopen/tensor.hpp>
 #include <miopen/datatype.hpp>
+#include <miopen/mlo_utils.hpp>
 #include <vector>
 #include <numeric>
 #include <algorithm>
